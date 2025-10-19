@@ -75,6 +75,7 @@ curl
 external
 # Exception: allow aws-c-common external headers
 !crt/aws-crt-cpp/crt/aws-c-common/include/aws/common/external
+!crt/aws-crt-cpp/crt/aws-c-common/source/external
 openssl
 zlib
 credentials
