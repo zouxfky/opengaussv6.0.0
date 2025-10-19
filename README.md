@@ -472,9 +472,60 @@ git push -u origin main
 
 ---
 
+## 🐛 常见问题
+
+### 1. 找不到头文件 `ittnotify.h` 或 `cJSON.h`
+
+**错误信息**：
+```
+致命错误：aws/common/external/ittnotify.h：No such file or directory
+```
+
+**原因**：
+AWS SDK 的 `.gitignore` 文件中有一条 `external` 规则，导致某些必需的头文件在 Git 克隆时被忽略。
+
+**解决方案**：
+这个问题已经在最新版本中修复（提交 `7371e1772`）。如果你使用的是旧版本，请执行：
+
+```bash
+git pull origin main
+```
+
+如果仍有问题，手动添加缺失的文件：
+```bash
+cd 3rd/aws-sdk-cpp
+git add -f crt/aws-crt-cpp/crt/aws-c-common/include/aws/common/external/
+git add -f crt/aws-crt-cpp/crt/aws-c-common/source/external/
+```
+
+### 2. CMake 路径重复问题
+
+**错误信息**：
+```
+/remote-home/zxf/opengauss6.0.0/remote-home/zxf/opengauss6.0.0/build/...
+```
+
+**解决方案**：
+确保 `PREFIX_HOME` 使用绝对路径，而不是相对路径：
+```bash
+export PREFIX_HOME=/opt/opengauss  # 绝对路径
+```
+
+### 3. RISC-V 架构特定问题
+
+**错误信息**：
+```
+cc: 错误：unrecognized command-line option '-msse4.2'
+```
+
+**解决方案**：
+确保 `add-riscv64-support-on-DCF.patch` 已正确应用到 `3rd/DCF` 目录。
+
+---
+
 ## 🐛 问题反馈
 
-如果遇到问题，请检查：
+如果遇到其他问题，请检查：
 1. 依赖包是否全部安装
 2. CMake 版本 ≥ 3.12
 3. GCC 版本 ≥ 7.3
