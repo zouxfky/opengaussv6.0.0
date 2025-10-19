@@ -73,6 +73,8 @@ _build_*
 AndroidTestOutput.txt
 curl
 external
+# Exception: allow aws-c-common external headers
+!crt/aws-crt-cpp/crt/aws-c-common/include/aws/common/external
 openssl
 zlib
 credentials
