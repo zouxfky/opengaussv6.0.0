@@ -1,716 +1,425 @@
-![openGauss Logo](doc/openGauss-logo.png "openGauss logo")
+# openGauss 6.0.0 RISC-V 编译安装指南
 
-[English](./README.en.md) | 简体中文
+> 从 Gitee 仓库**直接编译**安装 openGauss 6.0.0 RISC-V 版本（不使用 RPM 打包）
 
+## 📌 两种安装方式对比
 
+| 方式 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **RPM 打包** | 自动化、便于管理、符合系统规范 | 需要理解 spec 文件、构建时间长 | 生产环境、系统集成 |
+| **直接编译**（本文档） | 步骤透明、易于调试、可自定义 | 手动打补丁、手动管理依赖 | 开发测试、源码学习 |
 
-- [什么是openGauss](#什么是openGauss)
-- [安装](#安装)
-  - [创建配置文件](#创建配置文件)
-  - [初始化安装环境](#初始化安装环境)
-  - [执行安装](#执行安装)
-  - [卸载openGauss](#卸载opengauss)
-    - [**执行卸载**](#执行卸载)
-    - [**一键式环境清理**](#一键式环境清理)
-- [编译](#编译)
-  - [概述](#概述)
-  - [操作系统和软件依赖要求](#操作系统和软件依赖要求)
-  - [下载openGauss](#下载opengauss)
-  - [编译第三方软件](#编译第三方软件)
-  - [代码编译](#代码编译)
-      - [使用build.sh编译代码](#使用buildsh编译代码)
-      - [使用命令编译代码](#使用命令编译代码)
-  - [编译安装包](#编译安装包)
-- [快速入门](#快速入门)
-- [文档](#文档)
-- [社区](#社区)
-  - [治理](#治理)
-  - [交流](#交流)
-- [贡献](#贡献)
-- [发行说明](#发行说明)
-- [许可证](#许可证)
+> 💡 **提示**：
+> - **RPM 方式**：使用 `opengauss-server.spec` + `rpmbuild`（会自动应用补丁）
+> - **直接编译方式**（本文档）：需要手动解压、打补丁、编译（适合开发调试）
 
-## 什么是openGauss
+## 📋 前提条件
 
-openGauss是一款开源的关系型数据库管理系统，它具有多核高性能、全链路安全性、智能运维等企业级特性。
-openGauss内核早期源自开源数据库PostgreSQL，融合了华为在数据库领域多年的内核经验，在架构、事务、存储引擎、优化器及ARM架构上进行了适配与优化。作为一个开源数据库，期望与广泛的开发者共同构建一个多元化技术的开源数据库社区。
+### 系统要求
+- **操作系统**：openEuler 24.03 LTS RISC-V 或更高版本
+- **架构**：RISC-V 64位
+- **内存**：建议 ≥ 8GB（编译时需要）
+- **磁盘空间**：≥ 10GB
 
-<img src="doc/openGauss-architecture.png" alt="openGauss架构" width="600"/>
+### 依赖包安装
 
-**高性能**
-
-openGauss突破了多核CPU的瓶颈，实现两路鲲鹏128核150万tpmC，内存优化表（MOT）引擎达350万tpmC。
-
-**数据分区**
-
-内部线程共享的关键数据结构进行数据分区，减少加锁访问冲突。比如CLOG就采用分区优化，解决ClogControlLock锁瓶颈。
-
-**NUMA化内核数据结构**
-
-关键数据结构NUMA化分配，减少跨CPU访问。比如全局PGPROC数组按照NUMA Node的数目分为多份，分别在对应NUMA Node上申请内存。解决ProcArrayLock锁瓶颈。
-
-**绑核优化**
-
-把网络中断绑核和后台业务线程绑核区分开，避免运行线程在核间迁移造成的性能不稳定。
-
-**ARM指令优化**
-
-结合ARM平台的原子操作lse进行优化，实现关键互斥变量原子高效操作。
-
-**SQL BY PASS**
-
-通过SQL BY PASS优化SQL执行流程，简化CPU执行开销。
-
-**高可靠**
-
-正常业务负载情况下，RTO小于10秒，降低节点故障导致的业务不可用时间。
-
-**并行恢复**
-
-主机日志传输到备机时，备机日志落盘的同时，发送给重做恢复分发线程，分发线程根据日志类型和日志操作的数据页发给多个并行恢复线程进行日志重做，保证备机的重做速度跟上主机日志的产生速度。这样备机实时处于ready状态，从而实现瞬间故障切换。
-
-
-**MOT引擎（Beta发布）**
-
-内存优化表（MOT）存储引擎是一个专为多核大内存优化的存储引擎，具有极高的联机事务处理（OLTP）性能和资源利用率。MOT的数据和索引完全存储在内存中，通过NUMA感知执行，算法消除闩锁争用以及查询JIT本地编译，提供低时延数据访问及高效事务执行。更多请参考[MOT引擎文档](https://opengauss.org/zh/docs/2.0.0/docs/Developerguide/%E5%86%85%E5%AD%98%E8%A1%A8%E7%89%B9%E6%80%A7.html)。
-
-**安全**
-
-openGauss支持账号管理，账号认证，口令复杂度检查，账号锁定，权限管理和校验，传输加密，操作
-审计等全方位的数据库安全能力，保护业务满足安全要求。
-
-**易运维**
-
-openGauss将AI算法集成到数据库中，减少数据库维护的负担。
-
-- **SQL预测**
-
-openGauss根据收集的历史性能数据进行编码和基于深度学习的训练及预测，支持SQL执行时间预测。
-
-- **SQL诊断器**
-
-openGauss支持SQL执行语句的诊断器，提前发现慢查询。
-
-- **参数自动调整**
-
-openGauss通过机器学习方法自动调整数据库参数，提高调参效率，降低正确调参成本。
-
-
-## 安装
-
-### 创建配置文件
-
-在安装openGauss之前，需要创建clusterconfig.xml配置文件。XML文件包含部署openGauss的服务器信息、安装路径、IP地址以及端口号等。用于告知openGauss如何部署。用户需根据不同场配置对应的XML文件。
-
-下面以一主一备的部署方案为例，说明如何创建XML配置文件。
-以下value取值信息仅为示例，可自行替换。每行信息均有注释进行说明。
-
-```
-<?xml version="1.0" encoding="UTF-8"?>
-<ROOT>
-    <!-- openGauss整体信息 -->
-    <CLUSTER>
-    <!-- 数据库名称 -->
-        <PARAM name="clusterName" value="dbCluster" />
-    <!-- 数据库节点名称(hostname) -->
-        <PARAM name="nodeNames" value="node1,node2" />
-    <!-- 节点IP，与nodeNames一一对应 -->
-        <PARAM name="backIp1s" value="192.168.0.11,192.168.0.12"/>
-    <!-- 数据库安装目录-->
-        <PARAM name="gaussdbAppPath" value="/opt/huawei/install/app" />
-    <!-- 日志目录-->
-        <PARAM name="gaussdbLogPath" value="/var/log/omm" />
-    <!-- 临时文件目录-->
-        <PARAM name="tmpMppdbPath" value="/opt/huawei/tmp"/>
-    <!--数据库工具目录-->
-        <PARAM name="gaussdbToolPath" value="/opt/huawei/install/om" />
-    <!--数据库core文件目录-->
-        <PARAM name="corePath" value="/opt/huawei/corefile"/>
-    <!-- openGauss类型，此处示例为单机类型，“single-inst”表示单机一主多备部署形态-->
-        <PARAM name="clusterType" value="single-inst"/>
-    </CLUSTER>
-    <!-- 每台服务器上的节点部署信息 -->
-    <DEVICELIST>
-        <!-- node1上的节点部署信息 -->
-        <DEVICE sn="1000001">
-        <!-- node1的hostname -->
-            <PARAM name="name" value="node1"/>
-        <!-- node1所在的AZ及AZ优先级 -->
-            <PARAM name="azName" value="AZ1"/>
-            <PARAM name="azPriority" value="1"/>
-        <!-- 如果服务器只有一个网卡可用，将backIP1和sshIP1配置成同一个IP -->
-            <PARAM name="backIp1" value="192.168.0.11"/>
-            <PARAM name="sshIp1" value="192.168.0.11"/>
-            
-	    <!--dbnode-->
-	    	<PARAM name="dataNum" value="1"/>
-	    <!--DBnode端口号-->
-	    	<PARAM name="dataPortBase" value="26000"/>
-	    <!--DBnode主节点上数据目录，及备机数据目录-->
-	    	<PARAM name="dataNode1" value="/opt/huawei/install/data/db1,node2,/opt/huawei/install/data/db1"/>
-	    <!--DBnode节点上设定同步模式的节点数-->
-	    	<PARAM name="dataNode1_syncNum" value="0"/>
-        </DEVICE>
-
-        <!-- node2上的节点部署信息，其中“name”的值配置为主机名称（hostname） -->
-        <DEVICE sn="1000002">
-            <PARAM name="name" value="node2"/>
-            <PARAM name="azName" value="AZ1"/>
-            <PARAM name="azPriority" value="1"/>
-            <!-- 如果服务器只有一个网卡可用，将backIP1和sshIP1配置成同一个IP -->
-            <PARAM name="backIp1" value="192.168.0.12"/>
-            <PARAM name="sshIp1" value="192.168.0.12"/>
-	</DEVICE>
-    </DEVICELIST>
-</ROOT>
+```bash
+sudo dnf install -y \
+  automake bison boost-devel cjson-devel cmake flex \
+  gcc gcc-c++ git glibc-devel krb5-devel libcurl-devel \
+  libaio-devel libxml2-devel libyaml-devel ncurses-devel \
+  openldap-devel openssl-devel pam-devel patch \
+  perl-ExtUtils-Embed python3-devel readline-devel zlib-devel
 ```
 
-### 初始化安装环境
+---
 
-创建完openGauss配置文件后，在执行安装前，为了后续能以最小权限进行安装及openGauss管理操作，保证系统安全性，需要运行安装前置脚本gs_preinstall准备好安装用户及环境。
+## 🚀 编译步骤
 
-安装前置脚本gs_preinstall可以协助用户自动完成如下的安装环境准备工作：
+### 快速步骤摘要
 
-- 自动设置Linux内核参数以达到提高服务器负载能力的目的。这些参数直接影响数据库系统的运行状态，请仅在确认必要时调整。
-- 自动将openGauss配置文件、安装包拷贝到openGauss主机的相同目录下。
-- openGauss安装用户、用户组不存在时，自动创建安装用户以及用户组。
-- 读取openGauss配置文件中的目录信息并创建，将目录权限授予安装用户。
+> ⚠️ **以下命令适用于 Linux (openEuler/Fedora)**，请在 RISC-V 服务器上执行！
 
-**注意事项**
+```bash
+# 1. 克隆并解压
+git clone https://gitee.com/opengauss/riscv.git && cd riscv && git checkout v6.0.0
+tar -xzf openGauss-server-v6.0.0.tar.gz && cd openGauss-server-v6.0.0
 
-- 用户需要检查上层目录权限，保证安装用户对安装包和配置文件目录读写执行的权限。
-- xml文件中各主机的名称与IP映射配置正确。
-- 只能使用root用户执行gs_preinstall命令。
+# 2. 解压第三方库
+mkdir -p 3rd/{DCF,aws-sdk-cpp,xgboost}
+tar -xzf ../DCF-5.1.0.tar.gz --strip-components=1 -C 3rd/DCF
+tar -xzf ../aws-sdk-cpp-1.11.327.tar.gz --strip-components=1 -C 3rd/aws-sdk-cpp
+tar -xzf ../xgboost-v1.4.1.tar.gz --strip-components=1 -C 3rd/xgboost
+tar -xzf ../dmlc-core-v0.5.tar.gz --strip-components=1 -C 3rd/xgboost/dmlc-core
 
-**操作步骤**
+# 3. 应用补丁
+for p in using-system-package-instead-binarylibs add-riscv64-support \
+  Fix-pointer-comparison-syntax-error link-gaussdb-with-atomic \
+  integrate-3rd-source-code; do patch -p1 < ../${p}.patch; done
+patch -p1 -d 3rd/DCF < ../add-riscv64-support-on-DCF.patch
+patch -p1 -d 3rd/xgboost < ../add-compile-options-to-xgboost.patch
 
-1.以root用户登录待安装openGauss的任意主机，并按规划创建存放安装包的目录。
+# 4. 修复 cJSON (Linux 版本)
+sed -i 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
+  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
 
-   ```
-mkdir -p /opt/software/openGauss
-chmod 755 -R /opt/software
-   ```
-
-   > **说明** 
-   >
-   > - 不建议把安装包的存放目录规划到openGauss用户的家目录或其子目录下，可能导致权限问题。
-   > - openGauss用户须具有/opt/software/openGauss目录的读写权限。
-
-2.将安装包“openGauss-x.x.x-openEULER-64bit.tar.gz”和配置文件“clusterconfig.xml”都上传至上一步所创建的目录中。
-
-3.在安装包所在的目录下，解压安装包openGauss-x.x.x-openEULER-64bit.tar.gz。安装包解压后，在/opt/software/openGauss目录下自动生成script目录。在script目录下生成gs_preinstall等OM工具脚本。
-
-```
-cd /opt/software/openGauss
-tar -zxvf openGauss-x.x.x-openEULER-64bit.tar.gz
-```
-
-4.进入工具脚本目录。
-
-   ```
-cd /opt/software/openGauss/script
-   ```
-
-5.如果是openEuler的操作系统，执行如下命令打开performance.sh文件，用#注释sysctl -w vm.min_free_kbytes=112640 &> /dev/null，键入“ESC”键进入指令模式，执行 **:wq**保存并退出修改。
-
-```
-vi /etc/profile.d/performance.sh
+# 5. 编译
+mkdir build && cd build
+export DEBUG_TYPE=release ENABLE_LITE_MODE=ON
+cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss -DENABLE_MULTIPLE_NODES=OFF \
+  -DENABLE_LITE_MODE=ON -DENABLE_OPENEULER_MAJOR=ON -DCMAKE_BUILD_TYPE=Release \
+  -DWITH_OPENEULER_OS=ON
+make -j$(nproc) && sudo make install
 ```
 
-6.为确保openssl版本正确，执行预安装前请加载安装包中lib库。执行命令如下，其中 *{packagePath}* 为用户安装包放置的路径，本示例中为/opt/software/openGauss。
+---
 
-   ```
-export LD_LIBRARY_PATH={packagePath}/script/gspylib/clib:$LD_LIBRARY_PATH
-   ```
+### 1. 克隆仓库
 
+```bash
+git clone https://gitee.com/opengauss/riscv.git
+cd riscv
+git checkout v6.0.0
+```
 
-7.为确保成功安装，检查 hostname 与 /etc/hostname 是否一致。预安装过程中，会对hostname进行检查。
+### 2. 解压源码
 
-8.使用gs_preinstall准备好安装环境。若为共用环境需加入--sep-env-file=ENVFILE参数分离环境变量，避免与其他用户相互影响，ENVFILE为用户自行指定的环境变量分离文件的路径。
-   执行如下命令，即采用交互模式执行前置，并在执行过程中自动创建root用户互信和openGauss用户互信：
+```bash
+# 解压主源码
+tar -xzf openGauss-server-v6.0.0.tar.gz
+cd openGauss-server-v6.0.0
+```
 
-   ```
-./gs_preinstall -U omm -G dbgrp -X /opt/software/openGauss/clusterconfig.xml
-   ```
+### 3. 解压第三方依赖
 
-   omm为数据库管理员用户（即运行openGauss的操作系统用户）,dbgrp为运行openGauss的操作系统用户的组名，/opt/software/ openGauss/clusterconfig.xml为openGauss的配置文件路径。执行过程中需要根据提示选择建立互信，并输入root或openGauss用户的密码。
+```bash
+# DCF（分布式一致性框架）
+mkdir -p 3rd/DCF
+tar -xzf ../DCF-5.1.0.tar.gz --strip-components=1 -C 3rd/DCF
 
-### 执行安装
+# AWS SDK C++
+mkdir -p 3rd/aws-sdk-cpp
+tar -xzf ../aws-sdk-cpp-1.11.327.tar.gz --strip-components=1 -C 3rd/aws-sdk-cpp
 
-执行前置脚本准备好openGauss安装环境之后，按照启动安装过程部署openGauss。
+# XGBoost（机器学习库）
+mkdir -p 3rd/xgboost
+tar -xzf ../xgboost-v1.4.1.tar.gz --strip-components=1 -C 3rd/xgboost
 
-**前提条件**
+# DMLC-Core（XGBoost 依赖）
+tar -xzf ../dmlc-core-v0.5.tar.gz --strip-components=1 -C 3rd/xgboost/dmlc-core
+```
 
-- 已成功执行前置脚本gs_preinstall。
-- 所有服务器操作系统和网络均正常运行。
-- 用户需确保各个主机上的locale保持一致。
+### 4. 应用补丁（必须）
 
-**操作步骤**
+> ⚠️ **重要**：必须手动应用所有补丁，否则编译会失败（尤其是 RISC-V 架构支持和原子操作链接）。
 
-1.（可选）检查安装包和openGauss配置文件在规划路径下是否已存在，如果没有，重新执行预安装，确保预安装成功，再执行以下步骤。
+```bash
+# 应用主源码补丁
+patch -p1 < ../using-system-package-instead-binarylibs.patch
+patch -p1 < ../add-riscv64-support.patch
+patch -p1 < ../Fix-pointer-comparison-syntax-error.patch
+patch -p1 < ../link-gaussdb-with-atomic.patch
+patch -p1 < ../integrate-3rd-source-code.patch
 
-2.登录到openGauss的主机，并切换到omm用户。
+# 应用第三方库补丁（注意 -d 参数指定目录）
+patch -p1 -d 3rd/DCF < ../add-riscv64-support-on-DCF.patch
+patch -p1 -d 3rd/xgboost < ../add-compile-options-to-xgboost.patch
 
-   ```
+# 可选：SM2 密钥对支持
+# patch -p1 < ../Using-sm2-curve-generate-key-pair.patch
+```
+
+**验证补丁应用成功**：
+
+```bash
+# 检查关键修改是否生效
+grep -r "latomic" CMakeLists.txt src/bin/*/CMakeLists.txt | head -3
+```
+
+### 5. 修复 cJSON 头文件路径（必须）
+
+AWS SDK 需要 `cJSON.h`，但默认路径不对。**直接修改源文件**（推荐）：
+
+**Linux (openEuler/Fedora)：**
+```bash
+sed -i 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
+  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
+
+# 验证修改
+grep 'cJSON.h' 3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
+```
+
+**macOS（仅用于本地测试，不推荐）：**
+```bash
+# macOS 的 sed 语法不同，-i 后面需要加 ''
+sed -i '' 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
+  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
+```
+
+> ⚠️ **注意**：应该在 RISC-V 服务器上编译，不要在本地 Mac 上编译！
+
+**备选方案（符号链接）：**
+
+```bash
+mkdir -p 3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/external
+ln -sf /usr/include/cjson/cJSON.h \
+  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/external/cJSON.h
+```
+
+### 6. 配置构建
+
+```bash
+mkdir build
+cd build
+
+# 设置必要的环境变量（必须！）
+export DEBUG_TYPE=release
+export ENABLE_LITE_MODE=ON
+
+# 配置 CMake（用 CMAKE_INSTALL_PREFIX 指定安装路径，避免路径拼接问题）
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/opt/opengauss \
+  -DENABLE_MULTIPLE_NODES=OFF \
+  -DENABLE_PRIVATEGAUSS=OFF \
+  -DENABLE_THREAD_SAFETY=ON \
+  -DENABLE_LITE_MODE=ON \
+  -DENABLE_OPENEULER_MAJOR=ON \
+  -DENABLE_BBOX=OFF \
+  -DTEST=OFF \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DWITH_OPENEULER_OS=ON
+
+# 重要：不要设置 PREFIX_HOME 环境变量，会导致路径拼接错误！
+# 直接用 CMAKE_INSTALL_PREFIX 指定安装路径
+```
+
+**环境变量说明：**
+- `DEBUG_TYPE=release`：编译类型（release/debug）
+- `ENABLE_LITE_MODE=ON`：轻量模式开关
+- ❌ ~~`PREFIX_HOME`~~：不要设置！会导致路径拼接错误
+
+**CMake 选项说明：**
+- `CMAKE_INSTALL_PREFIX=/opt/opengauss`：安装目录（**必须用这个选项**，不要用 PREFIX_HOME）
+- `ENABLE_MULTIPLE_NODES=OFF`：单节点模式（RISC-V 推荐）
+- `ENABLE_LITE_MODE=ON`：轻量模式
+- `ENABLE_OPENEULER_MAJOR=ON`：openEuler 优化
+- `CMAKE_BUILD_TYPE=Release`：发布版本（优化编译）
+
+### 7. 编译
+
+```bash
+# 根据 CPU 核心数选择并行度
+make -j$(nproc)
+
+# 如果内存不足（< 4GB），降低并行度
+# make -j2
+# 或单线程编译
+# make -j1
+```
+
+**预计编译时间：**
+- 4 核心：约 60-90 分钟
+- 单核心：约 3-4 小时
+
+### 8. 安装
+
+```bash
+# 安装到默认目录 /usr/local（需要 root 权限）
+sudo make install
+
+# 或在 cmake 配置时指定安装目录（推荐用于开发）
+# cd ../
+# rm -rf build && mkdir build && cd build
+# cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss [其他选项...]
+# make -j$(nproc)
+# sudo make install
+```
+
+**安装后配置**：
+
+```bash
+# 添加到 PATH（如果安装到非标准目录）
+echo 'export PATH=/usr/local/bin:$PATH' >> ~/.bashrc
+echo 'export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
+source ~/.bashrc
+
+# 验证安装
+which gs_initdb
+gs_initdb --version
+```
+
+---
+
+## 🧪 测试运行
+
+### 初始化数据库
+
+```bash
+# 创建数据库用户（不要用 root）
+sudo useradd -m -s /bin/bash omm
+sudo passwd omm
+
+# 切换到数据库用户
 su - omm
-   ```
 
-   > **说明** 
-   >
-   > - omm为gs_preinstall脚本中-U参数指定的用户。
-   > - 以上述omm用户执行gs_install脚本。否则会报执行错误。
-
-3.使用gs_install安装openGauss。若为环境变量分离的模式安装的集群需要source环境变量分离文件ENVFILE。
-
-   ```
-gs_install -X /opt/software/openGauss/clusterconfig.xml
-   ```
-
- /opt/software/openGauss/script/clusterconfig.xml为openGauss配置文件的路径。在执行过程中，用户需根据提示输入数据库的密码，密码具有一定的复杂度，为保证用户正常使用该数据库，请记住输入的数据库密码。
-
- 密码复杂度要求：
-
-   - 长度至少8个字符。	
-   - 不能和用户名、当前密码（ALTER）、当前密码的倒序相同。
-   - 以下至少包含三类：大写字母（A - Z）、小写字母（a - z）、数字（0 - 9）、其他字符（仅限~!@#$%^&*()-_=+\|[{}];:,<.>/?）。
-
-4.安装执行成功之后，需要手动删除主机root用户的互信，即删除openGauss数据库各节点上的互信文件。
-
-   ```
-rm -rf ~/.ssh
-   ```
-
-### 卸载openGauss
-
-卸载openGauss的过程包括卸载openGauss和清理openGauss服务器环境。
-
-#### **执行卸载**
-
-openGauss提供了卸载脚本，帮助用户卸载openGauss。
-
-**操作步骤**
-
-1.以操作系统用户omm登录数据库主节点。
-
-2.使用gs_uninstall卸载openGauss。
-
-   ```
-gs_uninstall --delete-data
-   ```
-
-   或者在openGauss中每个节点执行本地卸载。
-
-   ```
-gs_uninstall --delete-data -L
-   ```
-
-#### **一键式环境清理**
-
-在openGauss卸载完成后，如果不需要在环境上重新部署openGauss，可以运行脚本gs_postuninstall对openGauss服务器上环境信息做清理。openGauss环境清理是对环境准备脚本gs_preinstall所做设置的清理。
-**前提条件**
-
-- openGauss卸载执行成功。
-- root用户互信可用。
-- 只能使用root用户执行gs_postuninstall命令。
-
-**操作步骤**
-
-1.以root用户登录openGauss服务器。
-
-2.查看互信是否建成功，可以互相执行**ssh 主机名**。输入exit退出。
-
-   ```
-   plat1:~ # ssh plat2 
-   Last login: Tue Jan  5 10:28:18 2016 from plat1 
-   plat2:~ # exit 
-   logout 
-   Connection to plat2 closed. 
-   plat1:~ #
-   ```
-
-3.进入script路径下。
-
-   ```
-   cd /opt/software/openGauss/script
-   ```
-
-4.使用gs_postuninstall进行清理。若为环境变量分离的模式安装的集群需要source环境变量分离文件ENVFILE。
-
-   ```
-   ./gs_postuninstall -U omm -X /opt/software/openGauss/clusterconfig.xml --delete-user --delete-group
-   ```
-
-  或者在openGauss中每个节点执行本地后置清理。
-
-   ```
-   ./gs_postuninstall -U omm -X /opt/software/openGauss/clusterconfig.xml --delete-user --delete-group -L
-   ```
-
- omm为运行openGauss的操作系统用户名，/opt/software/openGauss/clusterconfig.xml为openGauss配置文件路径。
-
-若为环境变量分离的模式安装的集群需删除之前source的环境变量分离的env参数unset MPPDB_ENV_SEPARATE_PATH
-
-5.删除各openGauss数据库节点root用户互信。 
-
-
-## 编译
-
-### 概述
-
-编译openGauss需要openGauss-server和binarylibs两个组件。
-
-- openGauss-server：openGauss的主要代码。可以从开源社区获取。
-
-- binarylibs：openGauss依赖的第三方开源软件，你可以直接编译openGauss-third_party代码获取，也可以从开源社区下载已经编译好的并上传的一个副本。
-
-对于数据库、三方库、GCC的编译以及常见问题，参照博客[openGauss数据库编译指导](https://opengauss.org/zh/blogs/blogs.html?post/xingchen/opengauss_compile/)
-
-在编译openGauss之前，请检查操作系统和软件依赖要求。
-
-openGauss可以通过一键式shell工具build.sh进行编译，也可以通过命令进行编译。安装包由build.sh生成。
-
-### 操作系统和软件依赖要求
-
-openGauss支持以下操作系统：
-
-- CentOS 7.6（x86架构）
-
-- openEuler-20.03-LTS（aarch64架构）
-
-适配其他系统，参照博客[openGauss数据库编译指导](https://opengauss.org/zh/blogs/blogs.html?post/xingchen/opengauss_compile/)
-
-以下表格列举了编译openGauss的软件要求。
-
-建议使用从列出的操作系统安装盘或安装源中获取的以下依赖软件的默认安装包进行安装。如果不存在以下软件，请参考推荐的软件版本。
-
-软件依赖要求如下：
-
-| 软件            | 推荐版本            |
-| ------------- | --------------- |
-| libaio-devel  | 0.3.109-13      |
-| flex          | 2.5.31及以上版本     |
-| bison         | 2.7-4           |
-| ncurses-devel | 5.9-13.20130511 |
-| glibc-devel   | 2.17-111        |
-| patch         | 2.7.1-10        |
-| lsb_release   | 4.1             |
-| readline-devel| 7.0-13          |
-
-### 下载openGauss
-
-可以从开源社区下载openGauss-server和openGauss-third_party。
-
-https://opengauss.org/zh/
-
-可以通过以下网站获取编译好的binarylibs。下载后请解压缩并重命名为**binarylibs**。
-
-各版本和分支对应编译好的三方库二进制地址如下：
-
-<table>
-    <tr>
-    	<td>分支</td>
-        <td>tag</td>
-        <td>gcc版本</td>
-        <td>下载路径</td>
-    </tr>
-    <tr>
-    	<td rowspan=2>1.0.0</td>
-        <td>v1.0.0</td>
-        <td rowspan=2>gcc7.3</td>
-        <td rowspan=2><a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/1.0.0/openGauss-third_party_binarylibs.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/1.0.0/openGauss-third_party_binarylibs.tar.gz</a></td>
-        <tr><td>v1.0.1</td></tr> 
-    </tr>
-    <tr>
-    	<td rowspan=1>1.1.0</td>
-        <td>v1.1.0</td>
-        <td>gcc7.3</td>
-        <td rowspan=1><a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/1.1.0/openGauss-third_party_binarylibs.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/1.1.0/openGauss-third_party_binarylibs.tar.gz</a></td>
-    </tr>
-    <tr>
-    	<td rowspan=6>2.0.0</td>
-        <td>v2.0.0</td>
-        <td rowspan=6>gcc7.3</td>
-        <td rowspan=6><a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/2.0.0/openGauss-third_party_binarylibs.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/2.0.0/openGauss-third_party_binarylibs.tar.gz</a></td>
-        <tr><td>v2.0.1</td></tr>
-        <tr><td>v2.0.2</td></tr>
-        <tr><td>v2.0.3</td></tr>
-        <tr><td>v2.0.4</td></tr>
-        <tr><td>v2.0.5</td></tr>
-    </tr>
-    <tr>
-        <td rowspan=1>2.1.0</td>
-        <td>v2.1.0</td>
-        <td>gcc7.3</td>
-        <td rowspan=1><a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/2.1.0/openGauss-third_party_binarylibs.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/2.1.0/openGauss-third_party_binarylibs.tar.gz</a></td>
-    </tr>
-    <tr>
-        <td rowspan=4>3.0.0</td>
-        <td>v3.0.0</td>
-        <td rowspan=4>gcc7.3</td>
-        <td rowspan=3><a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/openGauss-third_party_binarylibs.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/openGauss-third_party_binarylibs.tar.gz</a></td>
-        <tr><td>v3.0.1</td></tr>
-        <tr><td>v3.0.2</td></tr>
-        <tr><td>v3.0.3</td>
-        <td rowspan=1>
-            <strong>openEuler_arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_arm-3.0.3.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_arm-3.0.3.tar.gz</a> <br/>
-            <strong>openEuler_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_x86_64-3.0.3.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_x86_64-3.0.3.tar.gz</a><br/>
-            <strong>Centos_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/binarylibs/openGauss-third_party_binarylibs_Centos7.6_x86_64-3.0.3.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.0.0/binarylibs/openGauss-third_party_binarylibs_Centos7.6_x86_64-3.0.3.tar.gz</a></td></tr>
-        </tr>
-    <tr>
-        <td rowspan=2>3.1.0</td>
-        <td>v3.1.0</td>
-        <td rowspan=2>gcc7.3</td>
-        <td rowspan=2>
-           <strong>openEuler_arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.1.0/binarylibs/openGauss-third_party_binarylibs_openEuler_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.1.0/binarylibs/openGauss-third_party_binarylibs_openEuler_arm.tar.gz</a><br/>
-            <strong>openEuler_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.1.0/binarylibs/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.1.0/binarylibs/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz</a><br/>
-            <strong>Centos_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.1.0/binarylibs/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/3.1.0/binarylibs/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz</a>
-        </tr>
-    </tr>
-    <tr><td>v3.1.1</td></tr>
-    <tr>
-        <td rowspan=1>5.0.0</td>
-        <td>v5.0.0</td>
-        <td>gcc7.3</td>
-        <td rowspan=1>
-            <strong>openEuler 20.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_arm.tar.gz</a><br/>
-            <strong>openEuler 20.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz</a><br/>
-            <strong>Centos_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz</a><br/>
-            <strong>openEuler 22.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs_2203/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs_2203/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz</a><br/>
-            <strong>openEuler 22.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs_2203/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.0.0/binarylibs_2203/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz</a></td>
-        </tr>
-    </tr>
-    <tr>
-        <td rowspan=2>5.1.0</td>
-        <td rowspan=2>v5.1.0</td>
-        <td>gcc7.3</td>
-        <td rowspan=1>
-            <strong>openEuler 20.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_arm.tar.gz</a><br/>
-            <strong>openEuler 20.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz</a><br/>
-            <strong>Centos_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz</a><br/>
-            <strong>openEuler 22.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz</a><br/>
-            <strong>openEuler 22.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc7.3/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz</a></td>
-        </tr>
-        <td>gcc10.3</td>
-        <td rowspan=1>
-            <strong>openEuler 20.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_arm.tar.gz</a><br/>
-            <strong>openEuler 20.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz</a><br/>
-            <strong>Centos_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz</a><br/>
-            <strong>openEuler 22.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz</a><br/>
-            <strong>openEuler 22.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/5.1.0/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz</a></td>
-        </tr>
-    <tr>
-        <td rowspan=2>master</td>
-        <td rowspan=2></td>
-        <td>gcc10.3</td>
-        <td rowspan=1>
-           <strong>openEuler_arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_arm.tar.gz</a><br/>
-            <strong>openEuler_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_x86_64.tar.gz</a><br/>
-            <strong>Centos_x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_Centos7.6_x86_64.tar.gz</a><br/>
-            <strong>openEuler 22.03 arm:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_arm.tar.gz</a><br/>
-            <strong>openEuler 22.03 x86:</strong> <a href="https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz">https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/binarylibs/gcc10.3/openGauss-third_party_binarylibs_openEuler_2203_x86_64.tar.gz</a></td>
-        </tr>
-    </tr>
-</table>
-
-注：6.0.0及以后的版本请使用gcc10.3的三方库进行编译
-
-现在我们已经拥有完整的openGauss代码，把它存储在以下目录中（以sda为例）。
-
-- /sda/openGauss-server
-- /sda/binarylibs
-- /sda/openGauss-third_party
-
-### 编译第三方软件
-
-在编译openGauss之前，需要先编译openGauss依赖的开源及第三方软件。这些开源及第三方软件存储在openGauss-third_party代码仓库中，通常只需要构建一次。如果开源软件有更新，需要重新构建软件。
-
-用户也可以直接从**binarylibs**库中获取开源软件编译和构建的输出文件。
-
-如果你想自己编译第三方软件，请到openGauss-third_party仓库查看详情。 
-
-执行完上述脚本后，最终编译和构建的结果保存在与**openGauss-third_party**同级的**binarylibs**目录下。在编译**openGauss-server**时会用到这些文件。
-
-### 代码编译
-
-##### 使用build.sh编译代码
-
-openGauss-server中的build.sh是编译过程中的重要脚本工具。该工具集成了软件安装编译和产品安装包编译功能，可快速进行代码编译和打包。。
-
-参数说明请见以下表格。
-
-| 选项  | 缺省值                       | 参数                                   | 说明                                              |
-| :---- | :--------------------------- | :------------------------------------- | :------------------------------------------------ |
-| -h    | 请勿使用此选项。             | -                                      | 帮助菜单。                                        |
-| -m    | release                      | [debug &#124; release &#124; memcheck] | 选择目标版本。                                    |
-| -3rd  | ${Code directory}/binarylibs | [binarylibs path]                      | 指定binarylibs路径。该路径必须是绝对路径。        |
-| -pkg  | 请勿使用此选项。             | -                                      | 将代码编译结果压缩至安装包。                      |
-| -nopt | 请勿使用此选项。             | -                                      | 如果使用此功能，则对鲲鹏平台的相关CPU不进行优化。 |
-
-> **注意** 
->
-> - **-m [debug | release | memcheck]** 表示有三个目标版本可以选择：
->    - **release**：生成release版本的二进制程序。此版本编译时，通过配置GCC高级优化选项，去除内核调试代码。此选项通常在生成环境或性能测试环境中使用。
->    - **debug**：表示生成debug版本的二进制程序。此版本编译时，增加了内核代码调试功能，一般用于开发自测环境。
->    - **memcheck**：表示生成memcheck版本的二进制程序。此版本编译时，在debug版本的基础上增加了ASAN功能，用于定位内存问题。
-> - **-3rd [binarylibs path]**为**binarylibs**的路径。默认设置为当前代码文件夹下存在**binarylibs**，因此如果**binarylibs**被移至**openGauss-server**中，或者在**openGauss-server**中创建了到**binarylibs**的软链接，则不需要指定此参数。但请注意，这样做的话，该文件很容易被**git clean**命令删除。
-> - 该脚本中的每个选项都有一个默认值。选项数量少，依赖简单。因此，该脚本易于使用。如果实际需要的参数值与默认值不同，请根据实际情况配置。
-
-现在你已经知晓build.sh的用法，只需使用如下命令即可编译openGauss-server。
-
-```
-[user@linux openGauss-server]$ sh build.sh -m [debug | release | memcheck] -3rd [binarylibs path]
+# 初始化数据库
+/usr/local/bin/gs_initdb -D /home/omm/data --nodename=single_node -w "YourPassword@123"
 ```
 
-举例： 
+### 启动数据库
 
-```
-[user@linux openGauss-server]$ sh build.sh       # 编译安装release版本的openGauss。需代码目录下有binarylibs或者其软链接，否则将会失败。
-[user@linux openGauss-server]$ sh build.sh -m debug -3rd /sda/binarylibs    # 编译安装debug版本的openGauss
-```
+```bash
+# 启动服务
+/usr/local/bin/gs_ctl start -D /home/omm/data
 
-编译后的软件安装路径为：**/sda/openGauss-server/dest**
-
-编译后的二进制文件路径为：**/sda/openGauss-server/dest/bin**
-
-编译日志： **make_compile.log**
-
-
-
-##### 使用命令编译代码
-
-1.获取对应的开源三方库二进制文件：
-
-   从3.1.0分支和3.0.3 tag开始，对于不同的环境提供不同的开源三方库二进制文件。 目前社区提供Centos_x86_64, openEuler_aarch64, openEuler_x86_64三种平台的三方库二进制。
-   可以从对应地址下载 [下载openGauss](#下载opengauss)
-
-2.配置环境变量
-
-   ```
-   export CODE_BASE=________     # openGauss-server的路径
-   export BINARYLIBS=________    # binarylibs的路径
-   export GAUSSHOME=$CODE_BASE/dest/
-   export GCC_PATH=$BINARYLIBS/buildtools/________    # gcc的版本，根据三方包中对应的gcc版本进行填写即可，一般有gcc7.3或gcc10.3两种
-   export CC=$GCC_PATH/gcc/bin/gcc
-   export CXX=$GCC_PATH/gcc/bin/g++
-   export LD_LIBRARY_PATH=$GAUSSHOME/lib:$GCC_PATH/gcc/lib64:$GCC_PATH/isl/lib:$GCC_PATH/mpc/lib/:$GCC_PATH/mpfr/lib/:$GCC_PATH/gmp/lib/:$LD_LIBRARY_PATH
-   export PATH=$GAUSSHOME/bin:$GCC_PATH/gcc/bin:$PATH
-
-   ```
-
-3.选择一个版本进行配置。
-
-   **debug**版本：
-
-   ```
-   # gcc10.3.1版本（一般用于openEuler + ARM架构）
-   ./configure --gcc-version=10.3.1 CC=g++ CFLAGS='-O0' --prefix=$GAUSSHOME --3rd=$BINARYLIBS --enable-debug --enable-cassert --enable-thread-safety --with-readline --without-zlib
-
-   # gcc10.3.0版本
-   ./configure --gcc-version=10.3.0 CC=g++ CFLAGS='-O0' --prefix=$GAUSSHOME --3rd=$BINARYLIBS --enable-debug --enable-cassert --enable-thread-safety --with-readline --without-zlib
-
-   ```
-
-   **release**版本：
-
-   ```
-   # gcc10.3.1版本（一般用于openEuler + ARM架构）
-   ./configure --gcc-version=10.3.1 CC=g++ CFLAGS="-O2 -g3" --prefix=$GAUSSHOME --3rd=$BINARYLIBS --enable-thread-safety --with-readline --without-zlib
-
-   # gcc10.3.0版本
-   ./configure --gcc-version=10.3.0 CC=g++ CFLAGS="-O2 -g3" --prefix=$GAUSSHOME --3rd=$BINARYLIBS --enable-thread-safety --with-readline --without-zlib
-
-   ```
-
-   **memcheck**版本：
-
-   ```
-   # gcc10.3.1版本（一般用于openEuler + ARM架构）
-   ./configure --gcc-version=10.3.1 CC=g++ CFLAGS='-O0' --prefix=$GAUSSHOME --3rd=$BINARYLIBS --enable-debug --enable-cassert --enable-thread-safety --with-readline --without-zlib --enable-memory-check
-
-   # gcc10.3.0版本
-   ./configure --gcc-version=10.3.0 CC=g++ CFLAGS='-O0' --prefix=$GAUSSHOME --3rd=$BINARYLIBS --enable-debug --enable-cassert --enable-thread-safety --with-readline --without-zlib --enable-memory-check
-
-   ```
-
-   > **注意** 
-   >
-   > - **[debug | release | memcheck]** 表示有三个目标版本可用。 
-   > - 在**ARM**平台上，需要把 **-D__USE_NUMA** 添加至 **CFLAGS** 中。
-   > - 在**ARMv8.1**及以上平台（如鲲鹏920），需要把 **-D__ARM_LSE** 添加至**CFLAGS**中。
-   > - 如果**binarylibs**被移至**openGauss-server**中，或者在**openGauss-server**中创建了到**binarylibs**的软链接，则不需要指定 **--3rd** 参数。但请注意，这样做的话，该文件很容易被`git clean`命令删除。
-
-4.执行以下命令编译openGauss：
-
-   ```
-   [user@linux openGauss-server]$ make -sj
-   [user@linux openGauss-server]$ make install -sj
-   ```
-
-5.显示如下信息，表示编译和安装成功。
-
-   ```
-   openGauss installation complete.
-   ```
-
-- 编译后的软件安装路径为: **$GAUSSHOME**。
-
-- 编译后的二进制文件存放路径为：**$GAUSSHOME/bin**。
-
-
-
-
-### 编译安装包 
-
-请先阅读[使用build.sh编译](#使用build.sh编译)章节，了解build.sh的用法，以及如何使用该脚本编译openGauss。
-
-现在，只需添加一个-pkg选项，就可以编译安装包。
-
-```
-[user@linux openGauss-server]$ sh build.sh -m [debug | release | memcheck] -3rd [binarylibs path] -pkg
+# 连接数据库
+/usr/local/bin/gsql -d postgres -p 5432
 ```
 
-举例：
+### 停止数据库
+
+```bash
+/usr/local/bin/gs_ctl stop -D /home/omm/data
+```
+
+---
+
+## ⚠️ 常见问题
+
+### 1. CMake 配置错误
+
+**问题**：`CMake Error: Could not find CMAKE_ROOT`
+
+**解决**：清理旧的 CMake 缓存
+
+```bash
+rm -rf build
+mkdir build
+cd build
+cmake ..
+```
+
+### 2. 路径拼接错误（重要！）
+
+**问题**：CMake 配置时出现路径重复拼接
+```
+-- /path/to/project/path/to/project/build/path/to/project/build/install
+-- Configuring incomplete, errors occurred!
+```
+
+**原因**：使用 `PREFIX_HOME` 环境变量时，CMakeLists.txt 会导致路径错误拼接
+
+**解决**：不要使用 `PREFIX_HOME`，改用 `CMAKE_INSTALL_PREFIX`
+
+```bash
+# ❌ 错误方式
+export PREFIX_HOME=/opt/opengauss
+cmake .. [其他选项...]
+
+# ✅ 正确方式
+export DEBUG_TYPE=release ENABLE_LITE_MODE=ON
+cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss [其他选项...]
+```
+
+### 3. 编译时找不到 cJSON.h
+
+**问题**：`fatal error: external/cJSON.h: No such file or directory`
+
+**解决**：确认 `cjson-devel` 已安装，并创建符号链接或修改源文件（见步骤 5）
+
+### 4. 内存不足导致编译失败
+
+**问题**：`c++: internal compiler error: Killed (program cc1plus)`
+
+**解决**：
+- 降低编译并行度：`make -j1`
+- 增加 swap 空间
+
+### 5. 链接错误（找不到 libatomic）
+
+**问题**：`undefined reference to __atomic_*`
+
+**解决**：这个问题应该已经通过 `link-gaussdb-with-atomic.patch` 解决
+
+### 6. 编译时 ereport 检查失败
+
+**问题**：`ereport scan detect unstandarded message`
+
+**解决**：在 CMake 配置时添加 `-DENABLE_EREPORT_VERIFICATION=OFF`
+
+### 7. dmlc-core 找不到源文件
+
+**问题**：`Cannot find source file: src/io/indexed_recordio_split.cc`
+
+**原因**：dmlc-core 的 `.gitignore` 可能忽略了某些文件
+
+**解决**：确认 dmlc-core 解压完整
+
+```bash
+# 重新解压 dmlc-core
+rm -rf 3rd/xgboost/dmlc-core/*
+tar -xzf ../dmlc-core-v0.5.tar.gz --strip-components=1 -C 3rd/xgboost/dmlc-core
+
+# 验证文件存在
+ls -la 3rd/xgboost/dmlc-core/src/io/indexed_recordio_split.*
+```
+
+---
+
+## 📂 目录结构
 
 ```
-sh build.sh -pkg       # 生成release版本的openGauss安装包。需代码目录下有binarylibs或者其软链接，否则将会失败。
-sh build.sh -m debug -3rd /sdc/binarylibs -pkg           # 生成debug版本的openGauss安装包
+riscv/
+├── openGauss-server-v6.0.0.tar.gz    # 主源码压缩包
+├── DCF-5.1.0.tar.gz                   # DCF 分布式一致性框架
+├── aws-sdk-cpp-1.11.327.tar.gz        # AWS SDK
+├── xgboost-v1.4.1.tar.gz              # XGBoost 机器学习库
+├── dmlc-core-v0.5.tar.gz              # XGBoost 依赖
+├── *.patch                            # 各种补丁文件
+└── openGauss-server-v6.0.0/           # 解压后的源码目录
+    ├── 3rd/                           # 第三方库目录
+    │   ├── DCF/
+    │   ├── aws-sdk-cpp/
+    │   └── xgboost/
+    └── build/                         # 编译目录
 ```
 
-- 生成的安装包存放目录：**./package**。
+---
 
-- 编译日志： **make_compile.log**
+## 📌 开发工作流
 
-- 安装包打包日志： **./package/make_package.log**
+如果你想修改源码并管理版本，建议将准备好的源码上传到自己的 Git 仓库：
 
+```bash
+# 在 openGauss-server-v6.0.0 目录下
+git init
+git add .
+git commit -m "Initial commit: openGauss 6.0.0 RISC-V with patches"
 
-## 快速入门
+# 推送到你的远程仓库
+git remote add origin https://gitee.com/your-username/opengauss-riscv.git
+git push -u origin main
+```
 
-参考[快速入门](https://opengauss.org/zh/docs/2.0.0/docs/Quickstart/Quickstart.html)。
+之后在其他机器上可以直接克隆你的仓库，跳过解压和打补丁步骤。
 
-## 文档
+---
 
-更多安装指南、教程和API请参考[用户文档](https://gitee.com/opengauss/docs)。
+## 📚 参考资源
 
-## 社区
+- **openGauss 官网**：https://opengauss.org/
+- **Gitee 仓库**：https://gitee.com/opengauss/riscv
+- **文档中心**：https://docs.opengauss.org/
 
-### 治理
+---
 
-查看openGauss是如何实现开放[治理](https://gitee.com/opengauss/community/blob/master/governance.md)。
+## 🐛 问题反馈
 
-### 交流
+如果遇到问题，请检查：
+1. 依赖包是否全部安装
+2. CMake 版本 ≥ 3.12
+3. GCC 版本 ≥ 7.3
+4. 系统内存是否充足
 
-- WeLink：开发者的交流平台。
-- IRC频道：`#opengauss-meeting`（仅用于会议纪要）。
-- 邮件列表：https://opengauss.org/zh/community/onlineCommunication/
+**技巧**：使用 `make -j1 VERBOSE=1` 查看详细的编译错误信息。
 
-## 贡献
-
-欢迎大家来参与贡献。详情请参阅我们的[社区贡献](https://opengauss.org/zh/contribution/)。
-
-## 发行说明
-
-请参见[发行说明](https://opengauss.org/zh/docs/2.0.0/docs/Releasenotes/Releasenotes.html)。
-
-## 许可证
-
-[MulanPSL-2.0](http://license.coscl.org.cn/MulanPSL2/)

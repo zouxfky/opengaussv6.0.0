@@ -1,25 +1,88 @@
-/.gitee/
-/.vscode/
-/.idea/
-/cmake-build-debug/
-*.a
+# 构建目录
+build/
+build_*/
+cmake-build-*/
+opengauss_install_dir/
+
+# 编译产物
 *.o
+*.a
 *.so
-*.so.[0-9]
-*.so.[0-9].[0-9]
-*.sgml
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+
+# CMake 缓存
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+
+# 编译器和工具生成的文件
 *.log
-*.inc
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# IDE 和编辑器配置
+.vscode/
+.idea/
+*.iml
+.DS_Store
+*.sublime-*
+.project
+.cproject
+.settings/
+
+# 调试符号
+*.dSYM/
+*.pdb
+
+# 测试和覆盖率
+*.gcov
+*.gcda
+*.gcno
+coverage/
+
+# 依赖管理
+node_modules/
+.deps/
+
+# 日志和数据库文件
+*.pid
+*.seed
+*.db
+*.sqlite
+
+# macOS 特定
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux 特定
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Windows 特定
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# 备份文件
+*.bak
+*.backup
+*.orig
 *.rej
 
-objfiles.txt
-
-/tmp_build/
-/output/
-/mppdb_temp_install/
-/GNUmakefile
-/config.status
-/ereport.txt
-
-/build/script/version.cfg
-/cmake_build
+# 临时文件
+tmp/
+temp/
+*.tmp
