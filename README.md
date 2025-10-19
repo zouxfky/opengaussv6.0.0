@@ -102,11 +102,7 @@ for p in using-system-package-instead-binarylibs add-riscv64-support \
 patch -p1 -d 3rd/DCF < ../add-riscv64-support-on-DCF.patch
 patch -p1 -d 3rd/xgboost < ../add-compile-options-to-xgboost.patch
 
-# 4. 修复 cJSON (Linux 版本)
-sed -i 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
-  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
-
-# 5. 编译
+# 4. 编译
 mkdir build && cd build
 
 export DEBUG_TYPE=release
@@ -194,37 +190,7 @@ patch -p1 -d 3rd/xgboost < ../add-compile-options-to-xgboost.patch
 grep -r "latomic" CMakeLists.txt src/bin/*/CMakeLists.txt | head -3
 ```
 
-#### 5. 修复 cJSON 头文件路径（必须）
-
-AWS SDK 需要 `cJSON.h`，但默认路径不对。**直接修改源文件**（推荐）：
-
-**Linux (openEuler/Fedora)：**
-```bash
-sed -i 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
-  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
-
-# 验证修改
-grep 'cJSON.h' 3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
-```
-
-**macOS（仅用于本地测试，不推荐）：**
-```bash
-# macOS 的 sed 语法不同，-i 后面需要加 ''
-sed -i '' 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
-  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/source/json.c
-```
-
-> ⚠️ **注意**：应该在 RISC-V 服务器上编译，不要在本地 Mac 上编译！
-
-**备选方案（符号链接）：**
-
-```bash
-mkdir -p 3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/external
-ln -sf /usr/include/cjson/cJSON.h \
-  3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/external/cJSON.h
-```
-
-#### 6. 配置构建
+#### 5. 配置构建
 
 ```bash
 mkdir build
@@ -384,7 +350,10 @@ cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss [其他选项...]
 
 **问题**：`fatal error: external/cJSON.h: No such file or directory`
 
-**解决**：确认 `cjson-devel` 已安装，并创建符号链接或修改源文件（见步骤 5）
+**解决**：这个问题通常是因为 `using-system-package-instead-binarylibs.patch` 补丁修改了头文件引用。确认：
+- 补丁已正确应用
+- `cjson-devel` 已安装
+- 如果仍有问题，检查 `json.c` 使用的是 `"external/cJSON.h"`（推荐内部实现）或 `<cjson/cJSON.h>`（系统库）
 
 #### 4. 内存不足导致编译失败
 
