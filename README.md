@@ -19,9 +19,13 @@ sudo dnf install -y automake bison boost-devel cjson-devel cmake flex \
 
 # 3. 直接编译
 mkdir build && cd build
-export DEBUG_TYPE=release ENABLE_LITE_MODE=ON
+
+export DEBUG_TYPE=release
+export ENABLE_LITE_MODE=ON
+export PREFIX_HOME=${pwd}/install
+
 cmake .. \
-  -DCMAKE_INSTALL_PREFIX=/opt/opengauss \
+  -DCMAKE_INSTALL_PREFIX=${pwd}/install \
   -DENABLE_MULTIPLE_NODES=OFF \
   -DENABLE_LITE_MODE=ON \
   -DENABLE_OPENEULER_MAJOR=ON \
@@ -29,7 +33,7 @@ cmake .. \
   -DWITH_OPENEULER_OS=ON
 
 make -j$(nproc)
-sudo make install
+make install
 ```
 
 **完成！🎉** 现在可以初始化和启动数据库了（见下方"测试运行"章节）。
@@ -101,11 +105,21 @@ sed -i 's|#include "external/cJSON.h"|#include <cjson/cJSON.h>|g' \
 
 # 5. 编译
 mkdir build && cd build
-export DEBUG_TYPE=release ENABLE_LITE_MODE=ON
-cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss -DENABLE_MULTIPLE_NODES=OFF \
-  -DENABLE_LITE_MODE=ON -DENABLE_OPENEULER_MAJOR=ON -DCMAKE_BUILD_TYPE=Release \
+
+export DEBUG_TYPE=release
+export ENABLE_LITE_MODE=ON
+export PREFIX_HOME=${pwd}/install
+
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=${pwd}/install \
+  -DENABLE_MULTIPLE_NODES=OFF \
+  -DENABLE_LITE_MODE=ON \
+  -DENABLE_OPENEULER_MAJOR=ON \
+  -DCMAKE_BUILD_TYPE=Release \
   -DWITH_OPENEULER_OS=ON
-make -j$(nproc) && sudo make install
+
+make -j$(nproc)
+make install
 ```
 
 ---
@@ -213,10 +227,11 @@ cd build
 # 设置必要的环境变量（必须！）
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
+export PREFIX_HOME=${pwd}/install
 
-# 配置 CMake（用 CMAKE_INSTALL_PREFIX 指定安装路径，避免路径拼接问题）
+# 配置 CMake（用相对路径安装到源码目录下的 install 文件夹）
 cmake .. \
-  -DCMAKE_INSTALL_PREFIX=/opt/opengauss \
+  -DCMAKE_INSTALL_PREFIX=${pwd}/install \
   -DENABLE_MULTIPLE_NODES=OFF \
   -DENABLE_PRIVATEGAUSS=OFF \
   -DENABLE_THREAD_SAFETY=ON \
@@ -227,17 +242,16 @@ cmake .. \
   -DCMAKE_BUILD_TYPE=Release \
   -DWITH_OPENEULER_OS=ON
 
-# 重要：不要设置 PREFIX_HOME 环境变量，会导致路径拼接错误！
-# 直接用 CMAKE_INSTALL_PREFIX 指定安装路径
+# 注意：PREFIX_HOME 和 CMAKE_INSTALL_PREFIX 应该设置为相同的路径
 ```
 
 **环境变量说明：**
 - `DEBUG_TYPE=release`：编译类型（release/debug）
 - `ENABLE_LITE_MODE=ON`：轻量模式开关
-- ❌ ~~`PREFIX_HOME`~~：不要设置！会导致路径拼接错误
+- `PREFIX_HOME=${pwd}/install`：安装目录（会展开为绝对路径）
 
 **CMake 选项说明：**
-- `CMAKE_INSTALL_PREFIX=/opt/opengauss`：安装目录（**必须用这个选项**，不要用 PREFIX_HOME）
+- `CMAKE_INSTALL_PREFIX=${pwd}/install`：安装目录（会展开为绝对路径，安装到源码根目录下的 `install/` 文件夹）
 - `ENABLE_MULTIPLE_NODES=OFF`：单节点模式（RISC-V 推荐）
 - `ENABLE_LITE_MODE=ON`：轻量模式
 - `ENABLE_OPENEULER_MAJOR=ON`：openEuler 优化
