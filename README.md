@@ -1,17 +1,51 @@
 # openGauss 6.0.0 RISC-V 编译安装指南
 
-> 从 Gitee 仓库**直接编译**安装 openGauss 6.0.0 RISC-V 版本（不使用 RPM 打包）
+> **本仓库已完成所有前置步骤（解压、打补丁），克隆后可直接编译！**
 
-## 📌 两种安装方式对比
+## ⚡ 快速开始（推荐）
 
-| 方式 | 优点 | 缺点 | 适用场景 |
-|------|------|------|----------|
-| **RPM 打包** | 自动化、便于管理、符合系统规范 | 需要理解 spec 文件、构建时间长 | 生产环境、系统集成 |
-| **直接编译**（本文档） | 步骤透明、易于调试、可自定义 | 手动打补丁、手动管理依赖 | 开发测试、源码学习 |
+**如果你从本 GitHub 仓库克隆，所有补丁已应用，直接编译即可：**
 
-> 💡 **提示**：
-> - **RPM 方式**：使用 `opengauss-server.spec` + `rpmbuild`（会自动应用补丁）
-> - **直接编译方式**（本文档）：需要手动解压、打补丁、编译（适合开发调试）
+```bash
+# 1. 克隆本仓库
+git clone https://github.com/zouxfky/opengaussv6.0.0.git
+cd opengaussv6.0.0
+
+# 2. 安装依赖（仅需一次）
+sudo dnf install -y automake bison boost-devel cjson-devel cmake flex \
+  gcc gcc-c++ git glibc-devel krb5-devel libcurl-devel libaio-devel \
+  libxml2-devel libyaml-devel ncurses-devel openldap-devel openssl-devel \
+  pam-devel patch perl-ExtUtils-Embed python3-devel readline-devel zlib-devel
+
+# 3. 直接编译
+mkdir build && cd build
+export DEBUG_TYPE=release ENABLE_LITE_MODE=ON
+cmake .. \
+  -DCMAKE_INSTALL_PREFIX=/opt/opengauss \
+  -DENABLE_MULTIPLE_NODES=OFF \
+  -DENABLE_LITE_MODE=ON \
+  -DENABLE_OPENEULER_MAJOR=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DWITH_OPENEULER_OS=ON
+
+make -j$(nproc)
+sudo make install
+```
+
+**完成！🎉** 现在可以初始化和启动数据库了（见下方"测试运行"章节）。
+
+---
+
+## 📌 两种源码获取方式对比
+
+| 源码来源 | 前置步骤 | 编译难度 | 适用场景 |
+|---------|---------|---------|----------|
+| **本 GitHub 仓库**<br>`github.com/zouxfky/opengaussv6.0.0` | ✅ 已完成<br>（已解压、已打补丁） | ⭐ 简单<br>克隆后直接编译 | 🚀 **快速开发、测试、学习**<br>（推荐） |
+| **Gitee 原始仓库**<br>`gitee.com/opengauss/riscv` | ❌ 需手动完成<br>（解压、打补丁） | ⭐⭐⭐ 复杂<br>需执行 5 大步骤 | 📚 深入学习补丁机制<br>自定义修改 |
+
+> 💡 **说明**：
+> - **本仓库**（GitHub）：所有第三方库已解压，所有 RISC-V 补丁已应用，`xgboost` Git 问题已修复
+> - **原始仓库**（Gitee）：仅包含压缩包和补丁文件，需要手动执行解压和打补丁步骤（见下方"从 Gitee 手动构建"章节）
 
 ## 📋 前提条件
 
@@ -34,14 +68,16 @@ sudo dnf install -y \
 
 ---
 
-## 🚀 编译步骤
+## 🔧 从 Gitee 手动构建（可选）
 
-### 快速步骤摘要
+> ⚠️ **注意**：如果你从**本 GitHub 仓库**克隆，**跳过本章节**！直接看顶部"快速开始"。
+> 
+> 以下步骤仅适用于从 **Gitee 原始仓库** (`gitee.com/opengauss/riscv`) 克隆的情况。
 
-> ⚠️ **以下命令适用于 Linux (openEuler/Fedora)**，请在 RISC-V 服务器上执行！
+### 完整步骤摘要（Gitee 仓库）
 
 ```bash
-# 1. 克隆并解压
+# 1. 克隆并解压（仅 Gitee 用户需要）
 git clone https://gitee.com/opengauss/riscv.git && cd riscv && git checkout v6.0.0
 tar -xzf openGauss-server-v6.0.0.tar.gz && cd openGauss-server-v6.0.0
 
@@ -74,7 +110,9 @@ make -j$(nproc) && sudo make install
 
 ---
 
-### 1. 克隆仓库
+### 详细步骤说明（Gitee 仓库）
+
+#### 1. 克隆 Gitee 仓库
 
 ```bash
 git clone https://gitee.com/opengauss/riscv.git
@@ -82,7 +120,7 @@ cd riscv
 git checkout v6.0.0
 ```
 
-### 2. 解压源码
+#### 2. 解压源码
 
 ```bash
 # 解压主源码
@@ -90,7 +128,7 @@ tar -xzf openGauss-server-v6.0.0.tar.gz
 cd openGauss-server-v6.0.0
 ```
 
-### 3. 解压第三方依赖
+#### 3. 解压第三方依赖
 
 ```bash
 # DCF（分布式一致性框架）
@@ -109,7 +147,7 @@ tar -xzf ../xgboost-v1.4.1.tar.gz --strip-components=1 -C 3rd/xgboost
 tar -xzf ../dmlc-core-v0.5.tar.gz --strip-components=1 -C 3rd/xgboost/dmlc-core
 ```
 
-### 4. 应用补丁（必须）
+#### 4. 应用补丁（必须）
 
 > ⚠️ **重要**：必须手动应用所有补丁，否则编译会失败（尤其是 RISC-V 架构支持和原子操作链接）。
 
@@ -136,7 +174,7 @@ patch -p1 -d 3rd/xgboost < ../add-compile-options-to-xgboost.patch
 grep -r "latomic" CMakeLists.txt src/bin/*/CMakeLists.txt | head -3
 ```
 
-### 5. 修复 cJSON 头文件路径（必须）
+#### 5. 修复 cJSON 头文件路径（必须）
 
 AWS SDK 需要 `cJSON.h`，但默认路径不对。**直接修改源文件**（推荐）：
 
@@ -166,7 +204,7 @@ ln -sf /usr/include/cjson/cJSON.h \
   3rd/aws-sdk-cpp/crt/aws-crt-cpp/crt/aws-c-common/external/cJSON.h
 ```
 
-### 6. 配置构建
+#### 6. 配置构建
 
 ```bash
 mkdir build
@@ -205,7 +243,7 @@ cmake .. \
 - `ENABLE_OPENEULER_MAJOR=ON`：openEuler 优化
 - `CMAKE_BUILD_TYPE=Release`：发布版本（优化编译）
 
-### 7. 编译
+#### 7. 编译
 
 ```bash
 # 根据 CPU 核心数选择并行度
@@ -221,7 +259,7 @@ make -j$(nproc)
 - 4 核心：约 60-90 分钟
 - 单核心：约 3-4 小时
 
-### 8. 安装
+#### 8. 安装
 
 ```bash
 # 安装到默认目录 /usr/local（需要 root 权限）
@@ -321,13 +359,13 @@ export DEBUG_TYPE=release ENABLE_LITE_MODE=ON
 cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss [其他选项...]
 ```
 
-### 3. 编译时找不到 cJSON.h
+#### 3. 编译时找不到 cJSON.h
 
 **问题**：`fatal error: external/cJSON.h: No such file or directory`
 
 **解决**：确认 `cjson-devel` 已安装，并创建符号链接或修改源文件（见步骤 5）
 
-### 4. 内存不足导致编译失败
+#### 4. 内存不足导致编译失败
 
 **问题**：`c++: internal compiler error: Killed (program cc1plus)`
 
@@ -335,19 +373,19 @@ cmake .. -DCMAKE_INSTALL_PREFIX=/opt/opengauss [其他选项...]
 - 降低编译并行度：`make -j1`
 - 增加 swap 空间
 
-### 5. 链接错误（找不到 libatomic）
+#### 5. 链接错误（找不到 libatomic）
 
 **问题**：`undefined reference to __atomic_*`
 
 **解决**：这个问题应该已经通过 `link-gaussdb-with-atomic.patch` 解决
 
-### 6. 编译时 ereport 检查失败
+#### 6. 编译时 ereport 检查失败
 
 **问题**：`ereport scan detect unstandarded message`
 
 **解决**：在 CMake 配置时添加 `-DENABLE_EREPORT_VERIFICATION=OFF`
 
-### 7. dmlc-core 找不到源文件
+#### 7. dmlc-core 找不到源文件
 
 **问题**：`Cannot find source file: src/io/indexed_recordio_split.cc`
 
