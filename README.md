@@ -498,7 +498,27 @@ git add -f crt/aws-crt-cpp/crt/aws-c-common/include/aws/common/external/
 git add -f crt/aws-crt-cpp/crt/aws-c-common/source/external/
 ```
 
-### 2. CMake 路径重复问题
+### 2. cJSON 链接错误
+
+**错误信息**：
+```
+undefined reference to `cJSON_InitHooks'
+undefined reference to `cJSON_IsInvalid'
+undefined reference to `cJSON_Delete'
+```
+
+**原因**：
+`json.c` 使用了系统的 `<cjson/cJSON.h>` 头文件，但没有链接系统的 cJSON 库。
+
+**解决方案**：
+这个问题已经在最新版本中修复（提交 `61257670e`）。执行：
+
+```bash
+git pull origin main
+rm -rf build  # 清理旧的编译缓存
+```
+
+### 3. CMake 路径重复问题
 
 **错误信息**：
 ```
@@ -511,7 +531,7 @@ git add -f crt/aws-crt-cpp/crt/aws-c-common/source/external/
 export PREFIX_HOME=/opt/opengauss  # 绝对路径
 ```
 
-### 3. RISC-V 架构特定问题
+### 4. RISC-V 架构特定问题
 
 **错误信息**：
 ```
