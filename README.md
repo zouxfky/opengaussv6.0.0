@@ -25,7 +25,6 @@ export ENABLE_LITE_MODE=ON
 export PREFIX_HOME=${pwd}/install
 
 cmake .. \
-  -DCMAKE_INSTALL_PREFIX=${pwd}/install \
   -DENABLE_MULTIPLE_NODES=OFF \
   -DENABLE_PRIVATEGAUSS=OFF \
   -DENABLE_THREAD_SAFETY=ON \
@@ -115,7 +114,6 @@ export ENABLE_LITE_MODE=ON
 export PREFIX_HOME=${pwd}/install
 
 cmake .. \
-  -DCMAKE_INSTALL_PREFIX=${pwd}/install \
   -DENABLE_MULTIPLE_NODES=OFF \
   -DENABLE_PRIVATEGAUSS=OFF \
   -DENABLE_THREAD_SAFETY=ON \
@@ -237,9 +235,8 @@ export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
 export PREFIX_HOME=${pwd}/install
 
-# 配置 CMake（用相对路径安装到源码目录下的 install 文件夹）
+# 配置 CMake
 cmake .. \
-  -DCMAKE_INSTALL_PREFIX=${pwd}/install \
   -DENABLE_MULTIPLE_NODES=OFF \
   -DENABLE_PRIVATEGAUSS=OFF \
   -DENABLE_THREAD_SAFETY=ON \
@@ -249,8 +246,6 @@ cmake .. \
   -DTEST=OFF \
   -DCMAKE_BUILD_TYPE=Release \
   -DWITH_OPENEULER_OS=ON
-
-# 注意：PREFIX_HOME 和 CMAKE_INSTALL_PREFIX 应该设置为相同的路径
 ```
 
 **环境变量说明：**
@@ -259,11 +254,15 @@ cmake .. \
 - `PREFIX_HOME=${pwd}/install`：安装目录（会展开为绝对路径）
 
 **CMake 选项说明：**
-- `CMAKE_INSTALL_PREFIX=${pwd}/install`：安装目录（会展开为绝对路径，安装到源码根目录下的 `install/` 文件夹）
-- `ENABLE_MULTIPLE_NODES=OFF`：单节点模式（RISC-V 推荐）
-- `ENABLE_LITE_MODE=ON`：轻量模式
-- `ENABLE_OPENEULER_MAJOR=ON`：openEuler 优化
-- `CMAKE_BUILD_TYPE=Release`：发布版本（优化编译）
+- `DENABLE_MULTIPLE_NODES=OFF`：单节点模式（RISC-V 推荐）
+- `DENABLE_PRIVATEGAUSS=OFF`：关闭 PrivateGauss 特性
+- `DENABLE_THREAD_SAFETY=ON`：启用线程安全
+- `DENABLE_LITE_MODE=ON`：轻量模式
+- `DENABLE_OPENEULER_MAJOR=ON`：openEuler 优化
+- `DENABLE_BBOX=OFF`：关闭黑盒功能
+- `DTEST=OFF`：关闭测试
+- `DCMAKE_BUILD_TYPE=Release`：发布版本（优化编译）
+- `DWITH_OPENEULER_OS=ON`：openEuler 系统适配
 
 #### 7. 编译
 
