@@ -31,8 +31,6 @@
 
 #include "catalog/pg_type.h"
 #include <ctype.h>
-<
-
 #include <limits.h>
 #include "vecexecutor/vechashtable.h"
 #include "utils/array.h"

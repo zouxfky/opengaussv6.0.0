@@ -24,6 +24,8 @@
 #ifndef VECTORBATCH_INL
 #define VECTORBATCH_INL
 
+// 引入RVV优化版本
+#include "vecexecutor/vectorbatch_rvv.inl"
 
 /*
  * @Description: If we call original Pack func to pack data.
@@ -37,6 +39,12 @@
 template <bool copyMatch, bool hasSysCol>
 void VectorBatch::OptimizePackT(_in_ const bool * sel, _in_ List * CopyVars)
 {
+#ifdef __riscv_vector
+	// 使用RVV优化版本
+	OptimizePackT_RVV<copyMatch, hasSysCol>(sel, CopyVars);
+	return;
+#endif
+
 	int     i, j, writeIdx = 0;
 	ScalarVector *pColumns = m_arr;
 	int     cRows = m_rows;
@@ -119,6 +127,12 @@ void VectorBatch::OptimizePackT(_in_ const bool * sel, _in_ List * CopyVars)
 template <bool copyMatch, bool hasSysCol>
 void VectorBatch::OptimizePackTForLateRead(_in_ const bool * sel, _in_ List * lateVars, int ctidColIdx)
 {
+#ifdef __riscv_vector
+	// 使用RVV优化版本
+	OptimizePackTForLateRead_RVV<copyMatch, hasSysCol>(sel, lateVars, ctidColIdx);
+	return;
+#endif
+
 	int     i, j, k, writeIdx = 0;
 	ScalarVector *pColumns = m_arr;
 	int     cRows = m_rows;
@@ -198,6 +212,12 @@ void VectorBatch::OptimizePackTForLateRead(_in_ const bool * sel, _in_ List * la
 template <bool copyMatch, bool hasSysCol>
 void VectorBatch::PackT (_in_ const bool *sel)
 {
+#ifdef __riscv_vector
+	// 使用RVV优化版本
+	PackT_RVV_Optimized<copyMatch, hasSysCol>(sel);
+	return;
+#endif
+
 	int     i, j, writeIdx = 0;
 	ScalarVector *pColumns = m_arr;
 	int     cRows = m_rows;

@@ -147,6 +147,13 @@ if(${BUILD_TUPLE} STREQUAL "aarch64" AND ${ENABLE_NUMA} STREQUAL "ON")
     endif()
 endif()
 
+# RISC-V Vector Extension (RVV) 支持
+if(${BUILD_TUPLE} STREQUAL "riscv64")
+    message(STATUS "Detected RISC-V 64-bit platform, enabling RVV optimizations")
+    set(OS_OPTIONS -march=rv64gcv)
+    message(STATUS "RVV compile flags: ${OS_OPTIONS}")
+endif()
+
 if(${ENABLE_LITE_MODE} STREQUAL "ON")
     set(ENABLE_LLVM_COMPILE OFF)
     set(ENABLE_GSS OFF)
@@ -200,6 +207,11 @@ if(${BUILD_TUPLE} STREQUAL "x86_64")
 elseif(${BUILD_TUPLE} STREQUAL "aarch64")
     set(USE_SSE42_CRC32C_WITH_RUNTIME_CHECK OFF)
     set(ARCH_LLVMIR "_aarch64" CACHE INTERNAL "")
+elseif(${BUILD_TUPLE} STREQUAL "riscv64")
+    # RISC-V Vector Extension 优化
+    set(USE_SSE42_CRC32C_WITH_RUNTIME_CHECK OFF)
+    set(ARCH_LLVMIR "_riscv64" CACHE INTERNAL "")
+    message(STATUS "Building for RISC-V with Vector Extension support")
 endif()
 
 #The two libraries are also connected in a dynamic library, for static link: change -lasan -ltsan to -l:libasan.a -l:libtsan.a

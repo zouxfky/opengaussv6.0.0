@@ -33,6 +33,9 @@
 #include "utils/biginteger.h"
 #include "vectorsonic/vsonichashagg.h"
 
+// 引入RVV优化版本
+#include "vecprimitive/int4_rvv_opt.inl"
+
 #define SAMESIGN(a,b)	(((a) < 0) == ((b) < 0))
 
 typedef struct vecInt8TransTypeData
@@ -45,6 +48,14 @@ template <SimpleOp sop,typename Datatype>
 ScalarVector*
 vint_sop(PG_FUNCTION_ARGS)
 {
+#ifdef __riscv_vector
+	// 使用RVV优化版本（仅支持int32）
+	if (sizeof(Datatype) == sizeof(int32_t)) {
+		return vint_sop_rvv_optimized<sop, Datatype>(fcinfo);
+	}
+#endif
+
+	// 原始标量实现
 	ScalarValue* parg1 = PG_GETARG_VECVAL(0);
 	ScalarValue* parg2 = PG_GETARG_VECVAL(1);
 	int32		 nvalues = PG_GETARG_INT32(2);
