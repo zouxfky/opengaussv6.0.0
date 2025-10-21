@@ -22,7 +22,7 @@ mkdir build && cd build
 
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
-export PREFIX_HOME=${pwd}/install
+export PREFIX_HOME=$(pwd)/install
 
 cmake .. \
   -DENABLE_MULTIPLE_NODES=OFF \
@@ -107,7 +107,7 @@ mkdir build && cd build
 
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
-export PREFIX_HOME=${pwd}/install
+export PREFIX_HOME=$(pwd)/install
 
 cmake .. \
   -DENABLE_MULTIPLE_NODES=OFF \
@@ -199,7 +199,7 @@ cd build
 # 设置必要的环境变量（必须！）
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
-export PREFIX_HOME=${pwd}/install
+export PREFIX_HOME=$(pwd)/install
 
 # 配置 CMake
 cmake .. \
@@ -217,7 +217,7 @@ cmake .. \
 **环境变量说明：**
 - `DEBUG_TYPE=release`：编译类型（release/debug）
 - `ENABLE_LITE_MODE=ON`：轻量模式开关
-- `PREFIX_HOME=${pwd}/install`：安装目录（会展开为绝对路径）
+- `PREFIX_HOME=$(pwd)/install`：安装目录（会展开为绝对路径）
 
 **CMake 选项说明：**
 - `DENABLE_MULTIPLE_NODES=OFF`：单节点模式（RISC-V 推荐）
