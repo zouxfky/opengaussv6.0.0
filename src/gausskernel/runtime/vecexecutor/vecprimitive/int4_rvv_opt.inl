@@ -57,10 +57,10 @@
 
 #ifdef __riscv_vector
 
-// Helper: 执行比较操作（避免代码重复）
+// Helper: 执行int32比较操作（避免代码重复）
 template <SimpleOp sop>
 static inline vbool32_t
-execute_comparison_rvv(vint32m1_t v_arg1, vint32m1_t v_arg2, size_t vl)
+execute_comparison_rvv_i32(vint32m1_t v_arg1, vint32m1_t v_arg2, size_t vl)
 {
 	if constexpr (sop == SOP_EQ) {
 		return __riscv_vmseq_vv_i32m1_b32(v_arg1, v_arg2, vl);
@@ -77,11 +77,37 @@ execute_comparison_rvv(vint32m1_t v_arg1, vint32m1_t v_arg2, size_t vl)
 	}
 }
 
+// Helper: 执行int64比较操作（避免代码重复）
+template <SimpleOp sop>
+static inline vbool64_t
+execute_comparison_rvv_i64(vint64m1_t v_arg1, vint64m1_t v_arg2, size_t vl)
+{
+	if constexpr (sop == SOP_EQ) {
+		return __riscv_vmseq_vv_i64m1_b64(v_arg1, v_arg2, vl);
+	} else if constexpr (sop == SOP_NEQ) {
+		return __riscv_vmsne_vv_i64m1_b64(v_arg1, v_arg2, vl);
+	} else if constexpr (sop == SOP_LT) {
+		return __riscv_vmslt_vv_i64m1_b64(v_arg1, v_arg2, vl);
+	} else if constexpr (sop == SOP_LE) {
+		return __riscv_vmsle_vv_i64m1_b64(v_arg1, v_arg2, vl);
+	} else if constexpr (sop == SOP_GT) {
+		return __riscv_vmsgt_vv_i64m1_b64(v_arg1, v_arg2, vl);
+	} else { // SOP_GE
+		return __riscv_vmsge_vv_i64m1_b64(v_arg1, v_arg2, vl);
+	}
+}
+
 // RVV优化版本的int32比较操作（第三轮最终版）
 template <SimpleOp sop, typename Datatype>
 ScalarVector*
 vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 {
+	// 编译时检查数据类型，当前仅支持int32
+	// 对于不支持的类型，返回 nullptr 让调用方使用标量版本
+	if constexpr (sizeof(Datatype) != sizeof(int32_t)) {
+		return nullptr;
+	}
+
 	ScalarValue* parg1 = PG_GETARG_VECVAL(0);
 	ScalarValue* parg2 = PG_GETARG_VECVAL(1);
 	int32		 nvalues = PG_GETARG_INT32(2);
@@ -91,9 +117,6 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 	uint8*		pflags1 = (uint8*)(PG_GETARG_VECTOR(0)->m_flag);
 	uint8*		pflags2 = (uint8*)(PG_GETARG_VECTOR(1)->m_flag);
 	int          i;
-
-	// 检查数据类型，当前仅支持int32
-	static_assert(sizeof(Datatype) == sizeof(int32_t), "RVV optimization currently supports int32 only");
 
 	if(likely(pselection == NULL))
 	{
@@ -107,7 +130,7 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 			vl = __riscv_vsetvl_e32m1(nvalues - i);
 			
 			// 软件预取下4个块的数据
-			if __builtin_expect(i + (vl * 4) < nvalues, 1) {
+			if (__builtin_expect(i + (vl * 4) < nvalues, 1)) {
 				__builtin_prefetch(&parg1[i + (vl * 4)], 0, 1);
 				__builtin_prefetch(&parg2[i + (vl * 4)], 0, 1);
 			}
@@ -121,12 +144,12 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 			vbool32_t v_not_null1_0 = __riscv_vmsne_vx_u8mf4_b32(v_flags1_0, 0, vl);
 			vbool32_t v_not_null2_0 = __riscv_vmsne_vx_u8mf4_b32(v_flags2_0, 0, vl);
 			vbool32_t v_both_not_null_0 = __riscv_vmand_mm_b32(v_not_null1_0, v_not_null2_0, vl);
-			vbool32_t v_cmp_result_0 = execute_comparison_rvv<sop>(v_arg1_0, v_arg2_0, vl);
+			vbool32_t v_cmp_result_0 = execute_comparison_rvv_i32<sop>(v_arg1_0, v_arg2_0, vl);
 			vbool32_t v_valid_0 = __riscv_vmand_mm_b32(v_both_not_null_0, v_cmp_result_0, vl);
 
 			// ===== 第2块 =====
 			int idx1 = i + vl;
-			if __builtin_expect(idx1 < remainder_start, 1) {
+			if (__builtin_expect(idx1 < remainder_start, 1)) {
 				vint32m1_t v_arg1_1 = __riscv_vle32_v_i32m1((int32_t*)&parg1[idx1], vl);
 				vint32m1_t v_arg2_1 = __riscv_vle32_v_i32m1((int32_t*)&parg2[idx1], vl);
 				vuint8mf4_t v_flags1_1 = __riscv_vle8_v_u8mf4(&pflags1[idx1], vl);
@@ -135,7 +158,7 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 				vbool32_t v_not_null1_1 = __riscv_vmsne_vx_u8mf4_b32(v_flags1_1, 0, vl);
 				vbool32_t v_not_null2_1 = __riscv_vmsne_vx_u8mf4_b32(v_flags2_1, 0, vl);
 				vbool32_t v_both_not_null_1 = __riscv_vmand_mm_b32(v_not_null1_1, v_not_null2_1, vl);
-				vbool32_t v_cmp_result_1 = execute_comparison_rvv<sop>(v_arg1_1, v_arg2_1, vl);
+				vbool32_t v_cmp_result_1 = execute_comparison_rvv_i32<sop>(v_arg1_1, v_arg2_1, vl);
 				vbool32_t v_valid_1 = __riscv_vmand_mm_b32(v_both_not_null_1, v_cmp_result_1, vl);
 
 				// 写回第2块（与第1块并行）
@@ -159,7 +182,7 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 
 			// ===== 第3块和第4块（类似处理）=====
 			i += vl * 2;
-			if __builtin_expect(i < remainder_start, 1) {
+			if (__builtin_expect(i < remainder_start, 1)) {
 				int idx2 = i;
 				int idx3 = i + vl;
 				
@@ -172,10 +195,10 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 					__riscv_vmsne_vx_u8mf4_b32(v_flags1_2, 0, vl),
 					__riscv_vmsne_vx_u8mf4_b32(v_flags2_2, 0, vl), vl);
 				vbool32_t v_valid_2 = __riscv_vmand_mm_b32(v_both_not_null_2,
-					execute_comparison_rvv<sop>(v_arg1_2, v_arg2_2, vl), vl);
+				execute_comparison_rvv_i32<sop>(v_arg1_2, v_arg2_2, vl), vl);
 
-				if __builtin_expect(idx3 < remainder_start, 1) {
-					vint32m1_t v_arg1_3 = __riscv_vle32_v_i32m1((int32_t*)&parg1[idx3], vl);
+			if (__builtin_expect(idx3 < remainder_start, 1)) {
+				vint32m1_t v_arg1_3 = __riscv_vle32_v_i32m1((int32_t*)&parg1[idx3], vl);
 					vint32m1_t v_arg2_3 = __riscv_vle32_v_i32m1((int32_t*)&parg2[idx3], vl);
 					vuint8mf4_t v_flags1_3 = __riscv_vle8_v_u8mf4(&pflags1[idx3], vl);
 					vuint8mf4_t v_flags2_3 = __riscv_vle8_v_u8mf4(&pflags2[idx3], vl);
@@ -184,7 +207,7 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 						__riscv_vmsne_vx_u8mf4_b32(v_flags1_3, 0, vl),
 						__riscv_vmsne_vx_u8mf4_b32(v_flags2_3, 0, vl), vl);
 					vbool32_t v_valid_3 = __riscv_vmand_mm_b32(v_both_not_null_3,
-						execute_comparison_rvv<sop>(v_arg1_3, v_arg2_3, vl), vl);
+						execute_comparison_rvv_i32<sop>(v_arg1_3, v_arg2_3, vl), vl);
 
 					// 写回第3块
 					vint32m1_t v_result_3 = __riscv_vmerge_vxm_i32m1(__riscv_vmv_v_x_i32m1(0, vl), 1, v_valid_3, vl);
@@ -216,7 +239,7 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 				__riscv_vmsne_vx_u8mf4_b32(v_flags1, 0, vl),
 				__riscv_vmsne_vx_u8mf4_b32(v_flags2, 0, vl), vl);
 			vbool32_t v_valid = __riscv_vmand_mm_b32(v_both_not_null,
-				execute_comparison_rvv<sop>(v_arg1, v_arg2, vl), vl);
+				execute_comparison_rvv_i32<sop>(v_arg1, v_arg2, vl), vl);
 
 			vint32m1_t v_result = __riscv_vmerge_vxm_i32m1(__riscv_vmv_v_x_i32m1(0, vl), 1, v_valid, vl);
 			__riscv_vse32_v_i32m1((int32_t*)&presult[i], v_result, vl);
@@ -263,7 +286,7 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 			vbool32_t v_active = __riscv_vmand_mm_b32(v_selection, v_both_not_null, vl);
 
 			// 执行比较操作（使用helper函数）
-			vbool32_t v_cmp_result = execute_comparison_rvv<sop>(v_arg1, v_arg2, vl);
+			vbool32_t v_cmp_result = execute_comparison_rvv_i32<sop>(v_arg1, v_arg2, vl);
 
 			// 最终有效掩码：active && cmp_result
 			vbool32_t v_valid = __riscv_vmand_mm_b32(v_active, v_cmp_result, vl);
@@ -285,6 +308,227 @@ vint_sop_rvv_optimized(PG_FUNCTION_ARGS)
 			vuint8mf4_t v_old_flag = __riscv_vle8_v_u8mf4(&pflag[i], vl);
 			v_result_flag = __riscv_vmerge_vvm_u8mf4(v_old_flag, v_result_flag, v_selection, vl);
 			__riscv_vse8_v_u8mf4(&pflag[i], v_result_flag, vl);
+
+			i += vl;
+		}
+	}
+
+	PG_GETARG_VECTOR(3)->m_rows = nvalues;
+	PG_GETARG_VECTOR(3)->m_desc.typeId = BOOLOID;
+	return PG_GETARG_VECTOR(3);
+}
+
+// RVV优化版本的int64比较操作（基于int32版本改造）
+template <SimpleOp sop, typename Datatype>
+ScalarVector*
+vint64_sop_rvv_optimized(PG_FUNCTION_ARGS)
+{
+	// 编译时检查数据类型，当前仅支持int64
+	// 对于不支持的类型，返回 nullptr 让调用方使用标量版本
+	if constexpr (sizeof(Datatype) != sizeof(int64_t)) {
+		return nullptr;
+	}
+
+	ScalarValue* parg1 = PG_GETARG_VECVAL(0);
+	ScalarValue* parg2 = PG_GETARG_VECVAL(1);
+	int32		 nvalues = PG_GETARG_INT32(2);
+	ScalarValue* presult = PG_GETARG_VECVAL(3);
+	uint8*	pflag = (uint8*)(PG_GETARG_VECTOR(3)->m_flag);
+	bool*		pselection = PG_GETARG_SELECTION(4);
+	uint8*		pflags1 = (uint8*)(PG_GETARG_VECTOR(0)->m_flag);
+	uint8*		pflags2 = (uint8*)(PG_GETARG_VECTOR(1)->m_flag);
+	int          i;
+
+	if(likely(pselection == NULL))
+	{
+		// 4路循环展开 + 寄存器优化（int64版本）
+		int vl;
+		int unroll_count = (nvalues >> 2); // 除以4
+		int remainder_start = unroll_count << 2; // 乘以4
+		
+		// 主循环：4路展开
+		for (i = 0; i < remainder_start; ) {
+			vl = __riscv_vsetvl_e64m1(nvalues - i);
+			
+			// 软件预取下4个块的数据
+			if (__builtin_expect(i + (vl * 4) < nvalues, 1)) {
+				__builtin_prefetch(&parg1[i + (vl * 4)], 0, 1);
+				__builtin_prefetch(&parg2[i + (vl * 4)], 0, 1);
+			}
+
+			// ===== 第1块 =====
+			vint64m1_t v_arg1_0 = __riscv_vle64_v_i64m1((int64_t*)&parg1[i], vl);
+			vint64m1_t v_arg2_0 = __riscv_vle64_v_i64m1((int64_t*)&parg2[i], vl);
+			vuint8mf8_t v_flags1_0 = __riscv_vle8_v_u8mf8(&pflags1[i], vl);
+			vuint8mf8_t v_flags2_0 = __riscv_vle8_v_u8mf8(&pflags2[i], vl);
+
+			vbool64_t v_not_null1_0 = __riscv_vmsne_vx_u8mf8_b64(v_flags1_0, 0, vl);
+			vbool64_t v_not_null2_0 = __riscv_vmsne_vx_u8mf8_b64(v_flags2_0, 0, vl);
+			vbool64_t v_both_not_null_0 = __riscv_vmand_mm_b64(v_not_null1_0, v_not_null2_0, vl);
+			vbool64_t v_cmp_result_0 = execute_comparison_rvv_i64<sop>(v_arg1_0, v_arg2_0, vl);
+			vbool64_t v_valid_0 = __riscv_vmand_mm_b64(v_both_not_null_0, v_cmp_result_0, vl);
+
+			// ===== 第2块 =====
+			int idx1 = i + vl;
+			if (__builtin_expect(idx1 < remainder_start, 1)) {
+				vint64m1_t v_arg1_1 = __riscv_vle64_v_i64m1((int64_t*)&parg1[idx1], vl);
+				vint64m1_t v_arg2_1 = __riscv_vle64_v_i64m1((int64_t*)&parg2[idx1], vl);
+				vuint8mf8_t v_flags1_1 = __riscv_vle8_v_u8mf8(&pflags1[idx1], vl);
+				vuint8mf8_t v_flags2_1 = __riscv_vle8_v_u8mf8(&pflags2[idx1], vl);
+
+				vbool64_t v_not_null1_1 = __riscv_vmsne_vx_u8mf8_b64(v_flags1_1, 0, vl);
+				vbool64_t v_not_null2_1 = __riscv_vmsne_vx_u8mf8_b64(v_flags2_1, 0, vl);
+				vbool64_t v_both_not_null_1 = __riscv_vmand_mm_b64(v_not_null1_1, v_not_null2_1, vl);
+				vbool64_t v_cmp_result_1 = execute_comparison_rvv_i64<sop>(v_arg1_1, v_arg2_1, vl);
+				vbool64_t v_valid_1 = __riscv_vmand_mm_b64(v_both_not_null_1, v_cmp_result_1, vl);
+
+				// 写回第2块（与第1块并行）
+				vint64m1_t v_result_1 = __riscv_vmv_v_x_i64m1(0, vl);
+				v_result_1 = __riscv_vmerge_vxm_i64m1(v_result_1, 1, v_valid_1, vl);
+				__riscv_vse64_v_i64m1((int64_t*)&presult[idx1], v_result_1, vl);
+
+				vuint8mf8_t v_result_flag_1 = __riscv_vmv_v_x_u8mf8(0, vl);
+				v_result_flag_1 = __riscv_vmerge_vxm_u8mf8(v_result_flag_1, 1, v_both_not_null_1, vl);
+				__riscv_vse8_v_u8mf8(&pflag[idx1], v_result_flag_1, vl);
+			}
+
+			// 写回第1块
+			vint64m1_t v_result_0 = __riscv_vmv_v_x_i64m1(0, vl);
+			v_result_0 = __riscv_vmerge_vxm_i64m1(v_result_0, 1, v_valid_0, vl);
+			__riscv_vse64_v_i64m1((int64_t*)&presult[i], v_result_0, vl);
+
+			vuint8mf8_t v_result_flag_0 = __riscv_vmv_v_x_u8mf8(0, vl);
+			v_result_flag_0 = __riscv_vmerge_vxm_u8mf8(v_result_flag_0, 1, v_both_not_null_0, vl);
+			__riscv_vse8_v_u8mf8(&pflag[i], v_result_flag_0, vl);
+
+			// ===== 第3块和第4块（类似处理）=====
+			i += vl * 2;
+			if (__builtin_expect(i < remainder_start, 1)) {
+				int idx2 = i;
+				int idx3 = i + vl;
+				
+				vint64m1_t v_arg1_2 = __riscv_vle64_v_i64m1((int64_t*)&parg1[idx2], vl);
+				vint64m1_t v_arg2_2 = __riscv_vle64_v_i64m1((int64_t*)&parg2[idx2], vl);
+				vuint8mf8_t v_flags1_2 = __riscv_vle8_v_u8mf8(&pflags1[idx2], vl);
+				vuint8mf8_t v_flags2_2 = __riscv_vle8_v_u8mf8(&pflags2[idx2], vl);
+
+				vbool64_t v_both_not_null_2 = __riscv_vmand_mm_b64(
+					__riscv_vmsne_vx_u8mf8_b64(v_flags1_2, 0, vl),
+					__riscv_vmsne_vx_u8mf8_b64(v_flags2_2, 0, vl), vl);
+				vbool64_t v_valid_2 = __riscv_vmand_mm_b64(v_both_not_null_2,
+				execute_comparison_rvv_i64<sop>(v_arg1_2, v_arg2_2, vl), vl);
+
+			if (__builtin_expect(idx3 < remainder_start, 1)) {
+				vint64m1_t v_arg1_3 = __riscv_vle64_v_i64m1((int64_t*)&parg1[idx3], vl);
+					vint64m1_t v_arg2_3 = __riscv_vle64_v_i64m1((int64_t*)&parg2[idx3], vl);
+					vuint8mf8_t v_flags1_3 = __riscv_vle8_v_u8mf8(&pflags1[idx3], vl);
+					vuint8mf8_t v_flags2_3 = __riscv_vle8_v_u8mf8(&pflags2[idx3], vl);
+
+					vbool64_t v_both_not_null_3 = __riscv_vmand_mm_b64(
+						__riscv_vmsne_vx_u8mf8_b64(v_flags1_3, 0, vl),
+						__riscv_vmsne_vx_u8mf8_b64(v_flags2_3, 0, vl), vl);
+					vbool64_t v_valid_3 = __riscv_vmand_mm_b64(v_both_not_null_3,
+						execute_comparison_rvv_i64<sop>(v_arg1_3, v_arg2_3, vl), vl);
+
+					// 写回第3块
+					vint64m1_t v_result_3 = __riscv_vmerge_vxm_i64m1(__riscv_vmv_v_x_i64m1(0, vl), 1, v_valid_3, vl);
+					__riscv_vse64_v_i64m1((int64_t*)&presult[idx3], v_result_3, vl);
+					vuint8mf8_t v_result_flag_3 = __riscv_vmerge_vxm_u8mf8(__riscv_vmv_v_x_u8mf8(0, vl), 1, v_both_not_null_3, vl);
+					__riscv_vse8_v_u8mf8(&pflag[idx3], v_result_flag_3, vl);
+				}
+
+				// 写回第2块
+				vint64m1_t v_result_2 = __riscv_vmerge_vxm_i64m1(__riscv_vmv_v_x_i64m1(0, vl), 1, v_valid_2, vl);
+				__riscv_vse64_v_i64m1((int64_t*)&presult[idx2], v_result_2, vl);
+				vuint8mf8_t v_result_flag_2 = __riscv_vmerge_vxm_u8mf8(__riscv_vmv_v_x_u8mf8(0, vl), 1, v_both_not_null_2, vl);
+				__riscv_vse8_v_u8mf8(&pflag[idx2], v_result_flag_2, vl);
+
+				i += vl * 2;
+			}
+		}
+
+		// 尾部处理：处理剩余元素
+		for (; i < nvalues; ) {
+			vl = __riscv_vsetvl_e64m1(nvalues - i);
+
+			vint64m1_t v_arg1 = __riscv_vle64_v_i64m1((int64_t*)&parg1[i], vl);
+			vint64m1_t v_arg2 = __riscv_vle64_v_i64m1((int64_t*)&parg2[i], vl);
+			vuint8mf8_t v_flags1 = __riscv_vle8_v_u8mf8(&pflags1[i], vl);
+			vuint8mf8_t v_flags2 = __riscv_vle8_v_u8mf8(&pflags2[i], vl);
+
+			vbool64_t v_both_not_null = __riscv_vmand_mm_b64(
+				__riscv_vmsne_vx_u8mf8_b64(v_flags1, 0, vl),
+				__riscv_vmsne_vx_u8mf8_b64(v_flags2, 0, vl), vl);
+			vbool64_t v_valid = __riscv_vmand_mm_b64(v_both_not_null,
+				execute_comparison_rvv_i64<sop>(v_arg1, v_arg2, vl), vl);
+
+			vint64m1_t v_result = __riscv_vmerge_vxm_i64m1(__riscv_vmv_v_x_i64m1(0, vl), 1, v_valid, vl);
+			__riscv_vse64_v_i64m1((int64_t*)&presult[i], v_result, vl);
+
+			vuint8mf8_t v_result_flag = __riscv_vmerge_vxm_u8mf8(__riscv_vmv_v_x_u8mf8(0, vl), 1, v_both_not_null, vl);
+			__riscv_vse8_v_u8mf8(&pflag[i], v_result_flag, vl);
+
+			i += vl;
+		}
+	}
+	else
+	{
+		// 向量化selection处理（int64版本）
+		int vl;
+		for (i = 0; i < nvalues; ) {
+			vl = __riscv_vsetvl_e64m1(nvalues - i);
+
+			// 软件预取：提前加载下一批数据到cache
+			if (i + vl < nvalues) {
+				__builtin_prefetch(&parg1[i + vl], 0, 3);
+				__builtin_prefetch(&parg2[i + vl], 0, 3);
+				__builtin_prefetch(&pflags1[i + vl], 0, 3);
+				__builtin_prefetch(&pflags2[i + vl], 0, 3);
+			}
+
+			// 加载selection向量
+			vuint8mf8_t v_selection_u8 = __riscv_vle8_v_u8mf8((uint8_t*)&pselection[i], vl);
+			vbool64_t v_selection = __riscv_vmsne_vx_u8mf8_b64(v_selection_u8, 0, vl);
+
+			// 加载数据
+			vint64m1_t v_arg1 = __riscv_vle64_v_i64m1((int64_t*)&parg1[i], vl);
+			vint64m1_t v_arg2 = __riscv_vle64_v_i64m1((int64_t*)&parg2[i], vl);
+			
+			// 加载NULL标记
+			vuint8mf8_t v_flags1 = __riscv_vle8_v_u8mf8(&pflags1[i], vl);
+			vuint8mf8_t v_flags2 = __riscv_vle8_v_u8mf8(&pflags2[i], vl);
+
+			// NULL检查
+			vbool64_t v_not_null1 = __riscv_vmsne_vx_u8mf8_b64(v_flags1, 0, vl);
+			vbool64_t v_not_null2 = __riscv_vmsne_vx_u8mf8_b64(v_flags2, 0, vl);
+			vbool64_t v_both_not_null = __riscv_vmand_mm_b64(v_not_null1, v_not_null2, vl);
+
+			// 合并selection和not_null掩码
+			vbool64_t v_active = __riscv_vmand_mm_b64(v_selection, v_both_not_null, vl);
+
+			// 执行比较操作（使用helper函数）
+			vbool64_t v_cmp_result = execute_comparison_rvv_i64<sop>(v_arg1, v_arg2, vl);
+
+			// 最终有效掩码：active && cmp_result
+			vbool64_t v_valid = __riscv_vmand_mm_b64(v_active, v_cmp_result, vl);
+
+			// 准备结果
+			vint64m1_t v_result = __riscv_vmv_v_x_i64m1(0, vl);
+			v_result = __riscv_vmerge_vxm_i64m1(v_result, 1, v_valid, vl);
+
+			// 只在selection为true时写入
+			vint64m1_t v_old_result = __riscv_vle64_v_i64m1((int64_t*)&presult[i], vl);
+			v_result = __riscv_vmerge_vvm_i64m1(v_old_result, v_result, v_selection, vl);
+			__riscv_vse64_v_i64m1((int64_t*)&presult[i], v_result, vl);
+
+			// 设置flag：selection && both_not_null时为1，selection && !both_not_null时为0
+			vuint8mf8_t v_result_flag = __riscv_vmv_v_x_u8mf8(0, vl);
+			v_result_flag = __riscv_vmerge_vxm_u8mf8(v_result_flag, 1, v_active, vl);
+			
+			// 只在selection为true时更新flag
+			vuint8mf8_t v_old_flag = __riscv_vle8_v_u8mf8(&pflag[i], vl);
+			v_result_flag = __riscv_vmerge_vvm_u8mf8(v_old_flag, v_result_flag, v_selection, vl);
+			__riscv_vse8_v_u8mf8(&pflag[i], v_result_flag, vl);
 
 			i += vl;
 		}

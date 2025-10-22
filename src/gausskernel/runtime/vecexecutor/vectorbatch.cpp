@@ -1179,3 +1179,11 @@ void VarBuf::DeInit(bool needfree)
     m_bufNum = 0;
     m_bufInitLen = VAR_BUF_SIZE;
 }
+
+// 显式实例化模板函数，避免链接错误
+template void VectorBatch::PackT<true, false>(const bool*);
+template void VectorBatch::PackT<true, true>(const bool*);
+template void VectorBatch::OptimizePackT<true, false>(const bool*, List*);
+template void VectorBatch::OptimizePackT<true, true>(const bool*, List*);
+template void VectorBatch::OptimizePackTForLateRead<true, false>(const bool*, List*, int);
+template void VectorBatch::OptimizePackTForLateRead<true, true>(const bool*, List*, int);

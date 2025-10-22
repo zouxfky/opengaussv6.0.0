@@ -459,6 +459,19 @@ public:
     void OptimizePackTForLateRead(_in_ const bool* sel, _in_ List* lateVars, int ctidColIdx);
 
 private:
+    /* RVV optimized versions - 内部实现，不需要公开声明 */
+#ifdef __riscv_vector
+    template <bool copyMatch, bool hasSysCol>
+    void PackT_RVV_Optimized(_in_ const bool* sel);
+
+    template <bool copyMatch, bool hasSysCol>
+    void OptimizePackT_RVV(_in_ const bool* sel, _in_ List* CopyVars);
+
+    template <bool copyMatch, bool hasSysCol>
+    void OptimizePackTForLateRead_RVV(_in_ const bool* sel, _in_ List* lateVars, int ctidColIdx);
+#endif
+
+private:
     // init the vectorbatch.
     void init(MemoryContext cxt, TupleDesc desc);
 

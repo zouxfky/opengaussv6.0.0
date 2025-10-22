@@ -82,7 +82,7 @@ void VectorBatch::PackT_RVV_Optimized(_in_ const bool *sel)
 		vl = __riscv_vsetvl_e8m1(cRows - i);
 		
 		// 预取下一批selection数据
-		if __builtin_expect(i + vl < cRows, 1) {
+		if (__builtin_expect(i + vl < cRows, 1)) {
 			__builtin_prefetch(&sel[i + vl], 0, 1);
 		}
 		
@@ -129,7 +129,7 @@ void VectorBatch::PackT_RVV_Optimized(_in_ const bool *sel)
 			vl = __riscv_vsetvl_e32m1(valid_count - i);
 			
 			// 预取
-			if __builtin_expect(i + vl < valid_count, 1) {
+			if (__builtin_expect(i + vl < valid_count, 1)) {
 				uint32_t next_src = compact_src_idx[i + vl];
 				__builtin_prefetch(&pValues0[next_src], 0, 1);
 				__builtin_prefetch(&pFlag0[next_src], 0, 1);
@@ -211,7 +211,7 @@ void VectorBatch::OptimizePackT_RVV(_in_ const bool *sel, _in_ List *CopyVars)
 	for (i = 0; i < cRows; ) {
 		vl = __riscv_vsetvl_e8m1(cRows - i);
 		
-		if __builtin_expect(i + vl < cRows, 1) {
+		if (__builtin_expect(i + vl < cRows, 1)) {
 			__builtin_prefetch(&sel[i + vl], 0, 1);
 		}
 		
@@ -298,7 +298,7 @@ void VectorBatch::OptimizePackTForLateRead_RVV(_in_ const bool *sel, _in_ List *
 	for (i = 0; i < cRows; ) {
 		vl = __riscv_vsetvl_e8m1(cRows - i);
 		
-		if __builtin_expect(i + vl < cRows, 1) {
+		if (__builtin_expect(i + vl < cRows, 1)) {
 			__builtin_prefetch(&sel[i + vl], 0, 1);
 		}
 		

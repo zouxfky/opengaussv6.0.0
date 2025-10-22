@@ -33,8 +33,8 @@
 #include "utils/biginteger.h"
 #include "vectorsonic/vsonichashagg.h"
 
-// 引入RVV优化版本
-#include "vecprimitive/int4_rvv_opt.inl"
+// 引入RVV优化版本（同目录下的文件）
+#include "int4_rvv_opt.inl"
 
 #define SAMESIGN(a,b)	(((a) < 0) == ((b) < 0))
 
@@ -49,9 +49,20 @@ ScalarVector*
 vint_sop(PG_FUNCTION_ARGS)
 {
 #ifdef __riscv_vector
-	// 使用RVV优化版本（仅支持int32）
+	// 使用RVV优化版本
+	// 根据数据类型大小选择对应的优化实现
 	if (sizeof(Datatype) == sizeof(int32_t)) {
-		return vint_sop_rvv_optimized<sop, Datatype>(fcinfo);
+		ScalarVector* result = vint_sop_rvv_optimized<sop, Datatype>(fcinfo);
+		if (result != nullptr) {
+			return result;
+		}
+		// 如果 RVV 优化版本返回 nullptr，继续使用标量版本
+	} else if (sizeof(Datatype) == sizeof(int64_t)) {
+		ScalarVector* result = vint64_sop_rvv_optimized<sop, Datatype>(fcinfo);
+		if (result != nullptr) {
+			return result;
+		}
+		// 如果 RVV 优化版本返回 nullptr，继续使用标量版本
 	}
 #endif
 
