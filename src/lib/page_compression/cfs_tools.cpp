@@ -1,1 +1,1 @@
-/remote-home/zxf/opengaussv6.0.0/./src/gausskernel/storage/smgr/cfs/cfs_tools.cpp
+/remote-home/zxf/opengauss/./src/gausskernel/storage/smgr/cfs/cfs_tools.cpp

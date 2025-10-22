@@ -1,1 +1,1 @@
-/remote-home/zxf/opengaussv6.0.0/./src/common/backend/utils/adt/pg_lzcompress.cpp
+/remote-home/zxf/opengauss/./src/common/backend/utils/adt/pg_lzcompress.cpp

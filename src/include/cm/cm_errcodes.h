@@ -1,1 +1,1 @@
-/remote-home/zxf/opengaussv6.0.0/src/lib/cm_common/cm_errcodes.h
+/remote-home/zxf/opengauss/src/lib/cm_common/cm_errcodes.h

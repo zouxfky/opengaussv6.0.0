@@ -20,6 +20,8 @@ sudo dnf install -y automake bison boost-devel cjson-devel cmake flex \
 # 3. 直接编译
 mkdir build && cd build
 
+export LIBRARY_PATH=/remote-home/zxf/gcc-14/lib:/remote-home/zxf/gcc-14/lib/gcc/riscv64-unknown-linux-gnu/14.2.0:$LIBRARY_PATH
+export LD_LIBRARY_PATH=/remote-home/zxf/gcc-14/lib:/remote-home/zxf/gcc-14/lib/gcc/riscv64-unknown-linux-gnu/14.2.0:$LD_LIBRARY_PATH
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
 export PREFIX_HOME=$(pwd)/install
@@ -105,6 +107,8 @@ patch -p1 -d 3rd/xgboost < ../add-compile-options-to-xgboost.patch
 # 4. 编译
 mkdir build && cd build
 
+export LIBRARY_PATH=/remote-home/zxf/gcc-14/lib:/remote-home/zxf/gcc-14/lib/gcc/riscv64-unknown-linux-gnu/14.2.0:$LIBRARY_PATH
+export LD_LIBRARY_PATH=/remote-home/zxf/gcc-14/lib:/remote-home/zxf/gcc-14/lib/gcc/riscv64-unknown-linux-gnu/14.2.0:$LD_LIBRARY_PATH
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
 export PREFIX_HOME=$(pwd)/install
@@ -197,6 +201,8 @@ mkdir build
 cd build
 
 # 设置必要的环境变量（必须！）
+export LIBRARY_PATH=/remote-home/zxf/gcc-14/lib:/remote-home/zxf/gcc-14/lib/gcc/riscv64-unknown-linux-gnu/14.2.0:$LIBRARY_PATH
+export LD_LIBRARY_PATH=/remote-home/zxf/gcc-14/lib:/remote-home/zxf/gcc-14/lib/gcc/riscv64-unknown-linux-gnu/14.2.0:$LD_LIBRARY_PATH
 export DEBUG_TYPE=release
 export ENABLE_LITE_MODE=ON
 export PREFIX_HOME=$(pwd)/install

@@ -1,1 +1,1 @@
-/remote-home/zxf/opengaussv6.0.0/./src/gausskernel/storage/access/transam/xlogreader.cpp
+/remote-home/zxf/opengauss/./src/gausskernel/storage/access/transam/xlogreader.cpp

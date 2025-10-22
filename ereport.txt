@@ -459,6 +459,7 @@ src/common/backend/utils/sort/tuplesort.cpp
 src/common/backend/utils/sort/tuplestore.cpp
 src/common/backend/utils/time/combocid.cpp
 src/common/backend/utils/time/snapmgr.cpp
+src/gausskernel/bootstrap/bootparse.cpp
 src/gausskernel/bootstrap/bootstrap.cpp
 src/gausskernel/cbb/bbox/bbox_create.cpp
 src/gausskernel/cbb/bbox/bbox_elf_dump.cpp

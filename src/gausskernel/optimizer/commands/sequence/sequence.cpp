@@ -752,11 +752,10 @@ static T_Int FetchLogLocal(T_Int* next, T_Int* result, T_Int* last, T_Int maxv, 
 template<typename T, bool large>
 static Datum GetIntDefVal(TypeName* name, T value)
 {
+    (void)name;
     if (large) {
-        *name = makeTypeNameFromOid(INT16OID, -1);
         return Int128GetDatum(value);
     } else {
-        *name = makeTypeNameFromOid(INT8OID, -1);
         return Int64GetDatumFast(value);
     }
 }

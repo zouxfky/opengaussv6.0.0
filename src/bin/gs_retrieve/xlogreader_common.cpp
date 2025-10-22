@@ -1,1 +1,1 @@
-/remote-home/zxf/opengaussv6.0.0/./src/gausskernel/storage/access/redo/xlogreader_common.cpp
+/remote-home/zxf/opengauss/./src/gausskernel/storage/access/redo/xlogreader_common.cpp

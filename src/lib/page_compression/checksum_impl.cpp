@@ -1,1 +1,1 @@
-/remote-home/zxf/opengaussv6.0.0/./src/gausskernel/storage/page/checksum_impl.cpp
+/remote-home/zxf/opengauss/./src/gausskernel/storage/page/checksum_impl.cpp
